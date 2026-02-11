@@ -1,0 +1,46 @@
+# Development Configuration (smaller, faster)
+
+model:
+  obs_dim: 6000
+  latent_dim: 2000
+  encoder_type: "standard"
+  use_physics_constraints: false
+  use_twin_network: false
+
+training:
+  batch_size: 64
+  max_epochs: 10
+  learning_rate: 0.001
+  num_workers: 2
+  gpus: 1
+  precision: 32
+  gradient_clip_val: 1.0
+
+loss:
+  elbo_weight: 1.0
+  cf_weight: 0.0 # No CF loss for quick dev
+  physics_weight: 0.0
+  identifiability_weight: 0.0
+  kl_beta: 0.5
+
+data:
+  data_dir: "lib"
+  dataset_size: "10k"
+  use_counterfactual: false
+  max_rows: 1000 # Only 1000 samples for dev
+  normalize: true
+
+checkpoint:
+  save_top_k: 1
+  monitor: "val/elbo"
+  mode: "min"
+
+early_stopping:
+  patience: 3
+  monitor: "val/elbo"
+  mode: "min"
+
+logging:
+  log_dir: "outputs/dev_logs"
+  experiment_name: "acie_dev"
+  log_every_n_steps: 10

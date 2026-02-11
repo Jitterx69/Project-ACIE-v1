@@ -1,0 +1,123 @@
+# ACIE Aggressive Training Configuration
+# Optimized for large-scale causal inference
+
+model:
+  obs_dim: 10000 # Inferred from 10k_x_10k datasets
+  latent_dim: 256 # Increased for better representation
+  hidden_dims: [2048, 1024, 512] # Deep architecture
+
+  encoder:
+    hidden_dims: [2048, 1024, 512, 256]
+    activation: "relu"
+    dropout: 0.15 # Moderate dropout for regularization
+    batch_norm: true
+
+  decoder:
+    hidden_dims: [256, 512, 1024, 2048]
+    activation: "relu"
+    dropout: 0.15
+    batch_norm: true
+
+  physics:
+    enabled: true
+    constraint_weight: 1.0
+    types: ["conservation", "virial", "positivity"]
+
+training:
+  # Aggressive training settings
+  batch_size: 128 # Large batch for stable gradients
+  epochs: 100 # Extended training
+  learning_rate: 0.0005 # Moderate LR with scheduler
+  weight_decay: 0.0001
+
+  # Learning rate schedule
+  scheduler:
+    type: "cosine_annealing"
+    T_max: 100
+    eta_min: 0.00001
+    warmup_epochs: 5
+
+  # Gradient clipping
+  clip_grad_norm: 1.0
+
+  # Mixed precision training
+  use_amp: true
+
+  # Accumulate gradients
+  accumulate_grad_batches: 2 # Effective batch size: 256
+
+# Loss weights - optimized for causal inference
+losses:
+  reconstruction: 1.0
+  kl_divergence: 0.5 # Beta-VAE with moderate beta
+  physics_constraint: 1.0
+  counterfactual_consistency: 2.0 # High weight for CF accuracy
+  intervention_effect: 1.5
+
+# Data configuration
+data:
+  # Use all available datasets
+  observational_train: "lib/acie_observational_20k_x_20k.csv"
+  observational_val: "lib/acie_observational_10k_x_10k.csv"
+  counterfactual: "lib/acie_counterfactual_10k_x_10k.csv"
+  interventions: "lib/acie_hard_intervention_20k_x_20k.csv"
+  environment_shift: "lib/acie_environment_shift_20k_x_20k.csv"
+  instrument_shift: "lib/acie_instrument_shift_20k_x_20k.csv"
+
+  # Data augmentation
+  augmentation:
+    noise_std: 0.01
+    scaling_range: [0.95, 1.05]
+    rotation_degrees: 5
+
+  # Preprocessing
+  normalize: true
+  standardize: true
+  remove_outliers: true
+  outlier_std: 3.0
+
+# Optimizer settings
+optimizer:
+  type: "adamw"
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  amsgrad: true
+
+# Checkpointing
+checkpointing:
+  save_top_k: 3
+  monitor: "val/total_loss"
+  mode: "min"
+  save_every_n_epochs: 5
+
+# Early stopping
+early_stopping:
+  monitor: "val/total_loss"
+  patience: 15
+  min_delta: 0.0001
+  mode: "min"
+
+# Logging
+logging:
+  log_every_n_steps: 50
+  log_dir: "outputs/logs"
+  tensorboard: true
+  save_weights_only: false
+
+# Hardware
+hardware:
+  accelerator: "auto" # Use GPU if available
+  devices: "auto"
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+
+# Hyperparameter search (optional)
+hparam_search:
+  enabled: false # Set to true for automatic tuning
+  trials: 20
+  search_space:
+    latent_dim: [128, 256, 512]
+    learning_rate: [0.0001, 0.0005, 0.001]
+    kl_weight: [0.1, 0.5, 1.0]
+    hidden_dims_scale: [1.0, 1.5, 2.0]

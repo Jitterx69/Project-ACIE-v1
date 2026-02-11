@@ -1,0 +1,82 @@
+# ACIE Configuration File
+
+# Model Architecture
+model:
+  obs_dim: 6000  # Observable dimension (10k dataset)
+  latent_dim: 2000  # Latent physical state dimension
+  encoder_type: "deep"  # "deep" or "standard"
+  use_physics_constraints: true
+  use_twin_network: true
+
+# Training
+training:
+  batch_size: 128
+  max_epochs: 100
+  learning_rate: 0.0001
+  num_workers: 4
+  gpus: 1
+  precision: "16-mixed"  # Mixed precision training
+  gradient_clip_val: 1.0
+
+# Loss Weights
+loss:
+  elbo_weight: 1.0
+  cf_weight: 0.5  # Counterfactual loss weight
+  physics_weight: 0.1  # Physics constraint penalty
+  identifiability_weight: 0.01
+  kl_beta: 1.0  # β-VAE parameter
+
+# Data
+data:
+  data_dir: "lib"
+  dataset_size: "10k"  # "10k" or "20k"
+  use_counterfactual: true
+  max_rows: null  # null for all rows, number for subset
+  normalize: true
+
+# Checkpointing
+checkpoint:
+  save_top_k: 3
+  monitor: "val/elbo"
+  mode: "min"
+  every_n_epochs: 1
+
+# Early Stopping
+early_stopping:
+  patience: 10
+  monitor: "val/elbo"
+  mode: "min"
+
+# Logging
+logging:
+  log_dir: "outputs/logs"
+  experiment_name: "acie_training"
+  log_every_n_steps: 50
+
+# Physics Constraints
+physics:
+  conserved_indices: [0, 1, 2, 3, 4]  # Which latent vars conserved
+  stability_type: "virial"  # "virial" or "bounds"
+  penalty_weight: 1.0
+
+# Intervention Configuration
+interventions:
+  # Mass intervention
+  mass:
+    indices: [0, 200]  # Slice notation
+    default_value: 1.5
+  
+  # Metallicity intervention
+  metallicity:
+    indices: [200, 400]
+    default_value: 0.02
+  
+  # Age intervention
+  age:
+    indices: [400, 600]
+    default_value: 5.0  # Gyr
+  
+  # Environment intervention
+  environment:
+    indices: [600, 800]
+    default_value: 1.0
