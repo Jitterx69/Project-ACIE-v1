@@ -3,17 +3,19 @@
  * High-performance GPU kernel for enforcing physics constraints
  */
 
-#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // Error checking macro
 #define CUDA_CHECK(call)                                                       \
   do {                                                                         \
     cudaError_t error = call;                                                  \
     if (error != cudaSuccess) {                                                \
-      printf("CUDA error at %s:%d: %s\n", __FILE__, __LINE__,                  \
-             cudaGetErrorString(error));                                       \
+      fprintf(stderr, "CUDA error at %s:%d: %s\n", __FILE__, __LINE__,         \
+              cudaGetErrorString(error));                                      \
       exit(EXIT_FAILURE);                                                      \
     }                                                                          \
   } while (0)
