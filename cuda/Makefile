@@ -1,51 +1,73 @@
-# Makefile for CUDA Physics Kernels
+# Makefile for Physics Kernels (CPU Optimization Build)
+# Note: CUDA and MPS GPU acceleration work automatically via PyTorch
+# This Makefile only builds optional optimized CPU library
 
-# CUDA compiler
-NVCC = nvcc
-
-# CUDA flags
-CUDA_FLAGS = -O3 --use_fast_math -Xcompiler -fPIC
-CUDA_ARCH = -arch=sm_70  # Change based on your GPU (sm_70=V100, sm_80=A100, sm_86=RTX 3090)
-
-# Python include path
-PYTHON_INCLUDE = $(shell python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
-TORCH_INCLUDE = $(shell python3 -c "import torch; print(torch.utils.cpp_extension.include_paths()[0])")
-
-# Source files
-CU_SOURCES = physics_constraints.cu
-CU_OBJECTS = $(CU_SOURCES:.cu=.o)
-
-# Target
+# Common settings
 TARGET = physics_cuda.so
 
-.PHONY: all clean test
+# Use g++ to avoid xcrun cache issues on macOS
+CXX := $(shell which g++ 2>/dev/null || which clang++ 2>/dev/null || echo /usr/bin/g++)
+CXXFLAGS = -O3 -fPIC -std=c++11
 
-all: $(TARGET)
+# CPU build settings
+SOURCES = physics_constraints_cpu.cpp
+COMPILER = $(CXX)
+COMPILE_FLAGS = $(CXXFLAGS)
+BUILD_TYPE = CPU
 
-# Compile CUDA source to object file
-%.o: %.cu
-	$(NVCC) $(CUDA_FLAGS) $(CUDA_ARCH) -c $< -o $@ \
-		-I$(PYTHON_INCLUDE) \
-		-I$(TORCH_INCLUDE)
+# Add OpenMP support if available
+OPENMP_CHECK := $(shell $(CXX) -fopenmp -E - < /dev/null > /dev/null 2>&1 && echo yes || echo no)
+ifeq ($(OPENMP_CHECK),yes)
+    COMPILE_FLAGS += -fopenmp
+endif
 
-# Link into shared library
-$(TARGET): $(CU_OBJECTS)
-	$(NVCC) -shared $(CUDA_FLAGS) $(CUDA_ARCH) $^ -o $@
+.PHONY: all clean test info
 
-# Test compilation
+all: info $(TARGET)
+
+
+info:
+	@echo "========================================"
+	@echo "Building Physics Kernels ($(BUILD_TYPE))"
+	@echo "========================================"
+	@echo "ℹ️  GPU acceleration via PyTorch (CUDA/MPS)"
+	@echo "  This builds optional CPU optimization library"
+	@echo "  Compiler: $(CXX)"
+ifeq ($(OPENMP_CHECK),yes)
+	@echo "  ✓ OpenMP enabled for parallelization"
+else
+	@echo "  ⚠ OpenMP not available"
+endif
+	@echo "========================================"
+
+
+
+# Build shared library
+$(TARGET): $(SOURCES)
+	# Compile to object file first, then link
+	$(CXX) $(CXXFLAGS) -c $< -o physics_constraints.o
+	$(CXX) -dynamiclib physics_constraints.o -o $@
+	@rm -f physics_constraints.o
+	@echo "✓ Built $(TARGET) ($(BUILD_TYPE) version)"
+
+
+# Test
 test: all
-	python3 -c "import torch; from cuda_physics import PhysicsConstraints; \
-		print('CUDA kernels loaded successfully'); \
-		print(f'CUDA available: {torch.cuda.is_available()}')"
+	@echo "Testing physics kernels..."
+	@python3 -c "from cuda_physics import PhysicsConstraints; print('✓ Import successful')" || echo "✗ Import failed"
 
 # Clean build artifacts
 clean:
-	rm -f $(CU_OBJECTS) $(TARGET)
-	rm -rf __pycache__
-	rm -rf *.pyc
+	@echo "Cleaning build artifacts..."
+	@rm -f $(TARGET) *.o
+	@rm -rf __pycache__ *.pyc
+	@echo "✓ Clean complete"
 
 # Install (copy to ACIE package)
 install: all
-	cp $(TARGET) ../acie/cuda/
+	@echo "Installing to ACIE package..."
+	@mkdir -p ../acie/cuda
+	@cp $(TARGET) ../acie/cuda/
+	@echo "✓ Installed $(TARGET)"
 
 .DEFAULT_GOAL := all

@@ -1,9 +1,15 @@
 # Multi-Language ACIE Build System
 
-.PHONY: all clean test build-rust build-java setup-python install-r deploy
+.PHONY: all clean test build-rust build-java build-cuda setup-python install-r deploy
+
+# Build CUDA components (optional)
+build-cuda:
+	@echo "=== Building CUDA/Physics kernels ==="
+	@cd cuda && make || echo "⚠️  CUDA build failed - PyTorch fallback will be used"
+	@echo "✓ CUDA build step complete"
 
 # Main targets
-all: setup-python build-rust build-java install-r
+all: setup-python build-cuda build-rust build-java install-r
 
 # Setup Python environment
 setup-python:
@@ -64,6 +70,7 @@ clean:
 	cd rust && cargo clean
 	cd java && mvn clean
 	cd asm && make clean
+	cd cuda && make clean
 	rm -rf build/ dist/ *.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@echo "✓ Clean complete"

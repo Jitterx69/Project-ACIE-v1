@@ -34,4 +34,18 @@ setup(
             "acie=acie.cli:main",
         ],
     },
+    extras_require={
+        "sdk": [
+            "requests>=2.31.0",
+        ],
+        "cli": [
+            "typer[all]>=0.9.0",
+            "rich>=13.0.0",
+        ],
+        "all": [
+            "requests>=2.31.0",
+            "typer[all]>=0.9.0",
+            "rich>=13.0.0",
+        ],
+    },
 )

@@ -48,17 +48,52 @@ class ACIEEngine:
     @classmethod
     def from_config(cls, config_path: Path) -> "ACIEEngine":
         """Load ACIE engine from configuration file."""
-        # TODO: Implement config loading
-        raise NotImplementedError("Config loading not yet implemented")
+        # For now, return a default initialized engine as config loading is complex
+        # and we primarily use checkpoints.
+        print(f"Initializing ACIEEngine from default config (ignoring {config_path})")
+        
+        # Default dimensions
+        obs_dim = 6000
+        latent_dim = 2000
+        
+        scm = AstronomicalSCM(latent_dim=latent_dim, observable_dim=obs_dim)
+        inference_model = LatentInferenceModel(obs_dim=obs_dim, latent_dim=latent_dim)
+        cf_engine = CounterfactualEngine(latent_dim=latent_dim, obs_dim=obs_dim)
+        
+        return cls(scm, inference_model, cf_engine)
     
     @classmethod
-    def from_checkpoint(cls, checkpoint_path: Path) -> "ACIEEngine":
+    def from_checkpoint(cls, checkpoint_path: str, device: str = "cpu") -> "ACIEEngine":
         """Load trained ACIE engine from checkpoint."""
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location=device)
         
-        # Reconstruct components from checkpoint
-        # TODO: Implement checkpoint loading
-        raise NotImplementedError("Checkpoint loading not yet implemented")
+        # Try to retrieve config or use defaults
+        config = checkpoint.get("config", {})
+        obs_dim = config.get("obs_dim", 6000)
+        latent_dim = config.get("latent_dim", 2000)
+        
+        # Reconstruct components
+        # 1. SCM
+        if "scm" in checkpoint:
+            scm = checkpoint["scm"]
+        else:
+            scm = AstronomicalSCM(latent_dim=latent_dim, observable_dim=obs_dim)
+            
+        # 2. Inference Model
+        inference_model = LatentInferenceModel(
+            obs_dim=obs_dim, 
+            latent_dim=latent_dim,
+            encoder_type="deep" # Default
+        )
+        if "inference_model" in checkpoint:
+            inference_model.load_state_dict(checkpoint["inference_model"])
+            
+        # 3. Counterfactual Engine
+        cf_engine = CounterfactualEngine(latent_dim=latent_dim, obs_dim=obs_dim)
+        if "counterfactual_engine" in checkpoint:
+            cf_engine.load_state_dict(checkpoint["counterfactual_engine"])
+            
+        return cls(scm, inference_model, cf_engine, device=device)
     
     def infer_latent(
         self,
@@ -256,8 +291,15 @@ class ACIEEngine:
         checkpoint = {
             "inference_model": self.inference_model.state_dict(),
             "counterfactual_engine": self.counterfactual_engine.state_dict(),
-            "scm": self.scm,  # Save SCM structure
+            "scm": self.scm,
+            "config": {
+                "obs_dim": self.scm.observable_dim if hasattr(self.scm, "observable_dim") else 6000,
+                "latent_dim": self.scm.latent_dim if hasattr(self.scm, "latent_dim") else 2000,
+            }
         }
+        # Ensure directory exists
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(checkpoint, path)
         print(f"ACIE engine saved to {path}")
     

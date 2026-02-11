@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acie-config
+  namespace: acie
+data:
+  # Application Configuration
+  MODEL_PATH: "/models/acie_final.ckpt"
+  CONFIG_PATH: "/config/gpu_config.yaml"
+  LOG_LEVEL: "INFO"
+
+  # Redis Configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+
+  # API Configuration
+  API_WORKERS: "4"
+  API_PORT: "8080"
+  GRPC_PORT: "50051"
+
+  # Inference Configuration
+  BATCH_SIZE: "128"
+  MAX_BATCH_WAIT_MS: "100"
+
+  # Cache Configuration
+  CACHE_TTL: "3600"
+  CACHE_ENABLED: "true"

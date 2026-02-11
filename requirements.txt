@@ -61,3 +61,14 @@ black>=23.0.0
 flake8>=6.0.0
 mypy>=1.3.0
 httpx>=0.25.0  # For testing FastAPI
+
+# SDK \u0026 CLI Enhancements (Phase 7)
+requests>=2.31.0  # For SDK HTTP client
+typer[all]>=0.9.0  # Enhanced CLI framework
+rich>=13.0.0  # Beautiful console output
+mlflow>=2.11.0
+fastapi>=0.109.0
+uvicorn>=0.27.0
+psutil>=5.9.0
+python-multipart
+

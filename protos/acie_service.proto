@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package acie;
+
+// ACIE Inference Service
+service ACIEInference {
+  // Single counterfactual inference
+  rpc CounterfactualInference(InferenceRequest) returns (InferenceResponse);
+  
+  // Batch inference with streaming
+  rpc BatchInference(stream InferenceRequest) returns (stream InferenceResponse);
+  
+  // Health check
+  rpc HealthCheck(HealthRequest) returns (HealthResponse);
+  
+  // Get model information
+  rpc GetModelInfo(ModelInfoRequest) returns (ModelInfoResponse);
+}
+
+// Inference request message
+message InferenceRequest {
+  repeated float observation = 1;
+  map<string, float> intervention = 2;
+  string model_version = 3;
+}
+
+// Inference response message
+message InferenceResponse {
+  repeated float counterfactual = 1;
+  repeated float latent_state = 2;
+  float confidence = 3;
+  string model_version = 4;
+}
+
+// Health check messages
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  repeated string models_loaded = 2;
+  int64 uptime_seconds = 3;
+}
+
+// Model info messages
+message ModelInfoRequest {
+  string model_version = 1;
+}
+
+message ModelInfoResponse {
+  string model_version = 1;
+  string architecture = 2;
+  int32 latent_dim = 3;
+  int32 obs_dim = 4;
+  string trained_at = 5;
+}

@@ -223,4 +223,35 @@ def record_model_accuracy(model_version: str, dataset: str, accuracy: float):
 
 def record_error(error_type: str, endpoint: str):
     """Record an error"""
-    error_counter.labels(error_type=error_type, endpoint=endpoint).inc()
+
+def get_system_stats():
+    """Get current system statistics as a dictionary"""
+    # Force update
+    update_system_metrics()
+    update_gpu_metrics()
+    
+    stats = {
+        "cpu_util": psutil.cpu_percent(),
+        "memory": {
+            "used": psutil.virtual_memory().used,
+            "total": psutil.virtual_memory().total,
+            "percent": psutil.virtual_memory().percent
+        },
+        "gpu": []
+    }
+    
+    if torch.cuda.is_available():
+        for i in range(torch.cuda.device_count()):
+            mem_allocated = torch.cuda.memory_allocated(i)
+            mem_total = torch.cuda.get_device_properties(i).total_memory
+            utilization = (mem_allocated / mem_total) * 100 if mem_total > 0 else 0
+            
+            stats["gpu"].append({
+                "id": i,
+                "name": torch.cuda.get_device_name(i),
+                "memory_used": mem_allocated,
+                "memory_total": mem_total,
+                "utilization": utilization
+            })
+            
+    return stats

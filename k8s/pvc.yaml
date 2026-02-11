@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: acie-models-pvc
+  namespace: acie
+spec:
+  accessModes:
+    - ReadOnlyMany # Multiple pods can read
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard # Adjust based on cloud provider
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: acie-logs-pvc
+  namespace: acie
+spec:
+  accessModes:
+    - ReadWriteMany # Multiple pods can write logs
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
