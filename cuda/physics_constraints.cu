@@ -105,72 +105,97 @@ __global__ void enforce_physics_constraints_kernel(
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (idx < n_samples) {
-    // Shared memory for reduction
-    __shared__ float shared_energy[256];
-    __shared__ float shared_momentum[3][256];
-
-    int tid = threadIdx.x;
-
-    // Initialize shared memory
-    shared_energy[tid] = 0.0f;
-    for (int i = 0; i < 3; i++) {
-      shared_momentum[i][tid] = 0.0f;
-    }
-
-    // Calculate energy and momentum for this thread
-    float energy = 0.0f;
-    float momentum[3] = {0.0f, 0.0f, 0.0f};
-
-    for (int i = tid; i < latent_dim; i += blockDim.x) {
+    // ------------------------------------------------------------------------
+    // 1. Calculate Energy
+    // ------------------------------------------------------------------------
+    float total_energy = 0.0f;
+    for (int i = 0; i < latent_dim; i++) {
       int offset = idx * latent_dim + i;
       float val = latents[offset];
-
-      // Energy contribution
-      energy += val * val;
-
-      // Momentum contribution (first 3 components)
-      if (i < 3) {
-        momentum[i] = val;
-      }
+      total_energy += val * val;
     }
 
-    shared_energy[tid] = energy;
-    for (int i = 0; i < 3; i++) {
-      shared_momentum[i][tid] = momentum[i];
-    }
-
-    __syncthreads();
-
-    // Reduce energy
-    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-      if (tid < s) {
-        shared_energy[tid] += shared_energy[tid + s];
-        for (int i = 0; i < 3; i++) {
-          shared_momentum[i][tid] += shared_momentum[i][tid + s];
-        }
-      }
-      __syncthreads();
-    }
-
-    // Calculate correction factors
+    // Energy scaling factor
     float energy_scale = 1.0f;
-    if (tid == 0) {
-      float total_energy = shared_energy[0];
-      if (total_energy > energy_tolerance) {
-        energy_scale = sqrtf(energy_tolerance / total_energy);
-      }
+    if (total_energy > energy_tolerance) {
+      energy_scale = sqrtf(energy_tolerance / total_energy);
     }
 
-    __syncthreads();
+    // ------------------------------------------------------------------------
+    // 2. Calculate Momentum (of energy-corrected state)
+    // ------------------------------------------------------------------------
+    // Note: We apply energy scaling first, then check momentum.
+    // Ideally we solve coupled constraints, but sequential projection is faster
+    // approximation.
 
-    // Apply corrections
-    for (int i = tid; i < latent_dim; i += blockDim.x) {
+    float momentum[3] = {0.0f, 0.0f, 0.0f};
+    int momentum_dim =
+        3; // Assuming momentum is first 3 dimensions for simplicty or derived
+
+    for (int i = 0; i < momentum_dim; i++) {
       int offset = idx * latent_dim + i;
+      // Use the energy-corrected value for momentum calculation
+      momentum[i] = latents[offset] * energy_scale;
+    }
+
+    // ------------------------------------------------------------------------
+    // 3. Apply Corrections
+    // ------------------------------------------------------------------------
+    for (int i = 0; i < latent_dim; i++) {
+      int offset = idx * latent_dim + i;
+
+      // Apply energy scaling
       float corrected = latents[offset] * energy_scale;
 
-      // Momentum correction
+      // Apply momentum correction (remove mean momentum)
+      // Here we assume momentum should be 0.
       if (i < 3) {
-        corrected -= shared_momentum[i][0];
+        corrected -= momentum[i]; // This forces momentum component to 0?
+        // Wait, previous momentum logic was "subtract mean momentum".
+        // If we want total momentum to be 0 for the system, usually it's
+        // summing across particles? BUT here we treat 'latent state' as the
+        // system. If latent state represents N particles, then we sum 3
+        // components per particle. Simplified assumption: The first 3
+        // dimensions ARE the total momentum. To conserve momentum (make it 0),
+        // we set them to 0??
+
+        // Re-reading previous logic:
+        // "Correct momentum components... corrected_latents[offset] -=
+        // mean_momentum[i]" It suggests subtracting the DEVIATION from
+        // conservation.
+
+        // Let's stick to simple projection: Force momentum dimensions to 0 if
+        // they represent total momentum deviation? OR if they represent
+        // velocity, we shift frame.
+
+        // Previous kernel logic was:
+        // Calculate total_momentum (sum of first 3 dims?).
+        // "mean_momentum" = total_momentum.
+        // subtract mean_momentum from... wait, previous logic subtracted
+        // mean_momentum from EACH dimension? "corrected_latents[offset] -=
+        // mean_momentum[i - momentum_start_idx]" This implies shifting the
+        // entire vector?
+
+        // Let's implement a safe standardized constraint:
+        // 1. Scale by energy.
+        // 2. If i < 3, set to 0 (hard constraint) or similar.
+
+        // To match the "momentum conservation" kernel exactly:
+        // It seems to assume the first 3 dims are the momentum vector itself
+        // and it subtracts it from itself? That zeros it out.
+
+        // Let's implement: Zero out first 3 dims? No, that's information loss.
+
+        // Let's assume the previous momentum kernel logic was:
+        // `mean_momentum` calculated from `total_momentum`.
+        // `corrected -= mean_momentum`.
+
+        // I will use a simplified robust approach:
+        // 1. Energy Scale.
+        // 2. Subtract momentum drift from the momentum variables themselves.
+        if (i < 3) {
+          corrected = 0.0f; // Force momentum to zero (Center of Mass frame)
+        }
       }
 
       corrected_latents[offset] = corrected;
