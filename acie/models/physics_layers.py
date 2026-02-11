@@ -269,3 +269,74 @@ class DifferentiablePhysics(nn.Module):
         
         total_violation = torch.cat(violations, dim=1).mean()
         return total_violation
+
+
+class CUDAPhysicsConstraintLayer(nn.Module):
+    """
+    High-performance physics constraint layer using custom CUDA kernels.
+    
+    Enforces:
+    - Energy conservation
+    - Momentum conservation
+    - Combined physics constraints
+    """
+    
+    def __init__(
+        self,
+        latent_dim: int,
+        energy_tolerance: float = 1e-4,
+        momentum_tolerance: float = 1e-4,
+        penalty_weight: float = 1.0,
+    ):
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.energy_tolerance = energy_tolerance
+        self.momentum_tolerance = momentum_tolerance
+        self.penalty_weight = penalty_weight
+        
+        # Try to load CUDA module
+        try:
+            from acie.cuda.cuda_physics import PhysicsConstraints
+            self.cuda_constraints = PhysicsConstraints(
+                latent_dim=latent_dim,
+                energy_tolerance=energy_tolerance,
+                momentum_tolerance=momentum_tolerance
+            )
+            self.has_cuda = True
+        except ImportError:
+            self.has_cuda = False
+            print("Warning: CUDA physics kernels not found. Using CPU fallback.")
+    
+    def forward(self, latent: torch.Tensor) -> torch.Tensor:
+        """
+        Compute constraint violation penalty using CUDA if available.
+        
+        Args:
+            latent: Latent physical state
+            
+        Returns:
+            Constraint violation penalty
+        """
+        if self.has_cuda and latent.is_cuda:
+            # Create a detached copy to measure violation without modifying gradients
+            # (In a real scenario, we might want differentiable CUDA kernels)
+            # For now, we compute the distance to the projected valid manifold
+            
+            with torch.no_grad():
+                corrected = self.cuda_constraints(latent)
+                
+            # The violation is the squared distance to the valid manifold
+            violation = torch.mean((latent - corrected) ** 2)
+            return self.penalty_weight * violation
+        else:
+            # CPU Fallback: Standard penalties
+            
+            # Energy conservation (simplified)
+            energy = torch.mean(latent ** 2, dim=-1)
+            energy_violation = torch.relu(energy - self.energy_tolerance).mean()
+            
+            # Momentum conservation (simplified)
+            momentum = torch.mean(latent[:, :3], dim=0)
+            momentum_violation = torch.mean(momentum ** 2)
+            
+            return self.penalty_weight * (energy_violation + momentum_violation)

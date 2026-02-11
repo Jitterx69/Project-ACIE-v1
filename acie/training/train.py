@@ -82,10 +82,21 @@ class ACIELightningModule(pl.LightningModule):
         
         # Physics layer (optional)
         if use_physics_constraints:
-            self.physics_layer = DifferentiablePhysics(
-                latent_dim=latent_dim,
-                num_constraints=10,
-            )
+            # Prefer CUDA implementation if available
+            try:
+                from acie.models.physics_layers import CUDAPhysicsConstraintLayer
+                self.physics_layer = CUDAPhysicsConstraintLayer(
+                    latent_dim=latent_dim,
+                    energy_tolerance=1e-4,
+                    momentum_tolerance=1e-4,
+                    penalty_weight=1.0
+                )
+            except ImportError:
+                # Fallback to differentiable physics
+                self.physics_layer = DifferentiablePhysics(
+                    latent_dim=latent_dim,
+                    num_constraints=10,
+                )
         else:
             self.physics_layer = None
     
