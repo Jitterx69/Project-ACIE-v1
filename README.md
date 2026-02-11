@@ -292,7 +292,48 @@ The server will start on `http://localhost:8080`
 }
 ```
 
-### 5. R Analytics Dashboard
+### 5. gRPC Service (High Performance)
+
+ACIE provides a gRPC interface for low-latency communication.
+
+**Start Server:**
+```bash
+python -m acie.grpc.server
+```
+
+**Client Example:**
+```python
+import grpc
+from acie.grpc import acie_pb2, acie_pb2_grpc
+
+channel = grpc.insecure_channel('localhost:50051')
+stub = acie_pb2_grpc.InferenceServiceStub(channel)
+
+response = stub.CounterfactualInference(acie_pb2.InferenceRequest(
+    model_version="latest",
+    observation=[0.1]*6000,
+    intervention={"mass": 2.0}
+))
+```
+
+### 6. Event Streaming (Kafka)
+
+Real-time event streaming for batched inference.
+
+**Start Infrastructure:**
+```bash
+docker-compose -f docker-compose.production.yml up -d zookeeper kafka
+```
+
+**Usage:**
+```python
+from acie.streaming.kafka_client import get_producer
+
+producer = get_producer(['localhost:9092'])
+producer.send_event('acie.inference.requests', 'inference_request', data)
+```
+
+### 7. R Analytics Dashboard
 
 Launch the interactive Shiny dashboard:
 
