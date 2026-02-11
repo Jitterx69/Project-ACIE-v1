@@ -60,27 +60,27 @@ ACIE operates as a modular distributed system. The architecture is designed for 
 
 ```mermaid
 graph TD
-    User[User / Researcher] -->|HTTPS| LoadBalancer[Nginx Load Balancer]
-    LoadBalancer -->|/api| APIGateway[FastAPI / Java Gateway]
-    LoadBalancer -->|/dashboard| WebUI[React Dashboard]
+    User["User / Researcher"] -->|HTTPS| LoadBalancer["Nginx Load Balancer"]
+    LoadBalancer -->|/api| APIGateway["FastAPI / Java Gateway"]
+    LoadBalancer -->|/dashboard| WebUI["React Dashboard"]
     
     subgraph "Application Layer"
-        APIGateway --> Redis[Redis Cache]
-        APIGateway --> Auth[OAuth2 / JWT Auth]
+        APIGateway --> Redis["Redis Cache"]
+        APIGateway --> Auth["OAuth2 / JWT Auth"]
     end
     
     subgraph "Compute Layer (ACIE Engine)"
-        APIGateway -->|gRPC/Internal| InferenceEngine[Inference Engine (Python)]
-        InferenceEngine -->|PyO3| RustOps[Rust Tensor Ops]
-        InferenceEngine -->|C-FFI| AsmKernels[Assembly AVX-512 Kernels]
-        InferenceEngine --> Physics[Differentiable Physics Layer]
+        APIGateway -->|"gRPC/Internal"| InferenceEngine["Inference Engine (Python)"]
+        InferenceEngine -->|PyO3| RustOps["Rust Tensor Ops"]
+        InferenceEngine -->|"C-FFI"| AsmKernels["Assembly AVX-512 Kernels"]
+        InferenceEngine --> Physics["Differentiable Physics Layer"]
     end
     
     subgraph "Data & MLOps"
-        InferenceEngine --> MLflow[MLflow Tracking]
-        InferenceEngine --> ModelRegistry[Model Registry]
-        Physics --> S3[Object Storage (Models/Data)]
-        APIGateway --> Prometheus[Prometheus Metrics]
+        InferenceEngine --> MLflow["MLflow Tracking"]
+        InferenceEngine --> ModelRegistry["Model Registry"]
+        Physics --> S3["Object Storage (Models/Data)"]
+        APIGateway --> Prometheus["Prometheus Metrics"]
     end
 ```
 
