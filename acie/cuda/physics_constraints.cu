@@ -35,12 +35,12 @@ __global__ void enforce_energy_conservation_kernel(
     for (int i = 0; i < latent_dim; i++) {
       int offset = idx * latent_dim + i;
       float val = latents[offset];
-      total_energy += val * val; // Simplified energy calculation
+      total_energy += val * val;
     }
 
-    // Normalize if energy exceeds tolerance
+    // Determine scale factor
     float scale_factor = 1.0f;
-    if (total_energy > tolerance) {
+    if (total_energy > tolerance && total_energy > 1e-8f) {
       scale_factor = sqrtf(tolerance / total_energy);
     }
 
@@ -63,30 +63,18 @@ __global__ void enforce_momentum_conservation_kernel(
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (idx < n_samples) {
-    // Calculate total momentum
-    float total_momentum[3] = {0.0f, 0.0f, 0.0f};
-
-    for (int i = 0; i < momentum_dim && i < 3; i++) {
-      int offset = idx * latent_dim + momentum_start_idx + i;
-      total_momentum[i] = latents[offset];
-    }
-
-    // Momentum should sum to zero (conservation)
-    // Subtract mean to enforce this
-    float mean_momentum[3];
-    for (int i = 0; i < 3; i++) {
-      mean_momentum[i] = total_momentum[i];
-    }
-
-    // Copy latents and apply momentum correction
+    // Copy all latents first
     for (int i = 0; i < latent_dim; i++) {
       int offset = idx * latent_dim + i;
       corrected_latents[offset] = latents[offset];
+    }
 
-      // Correct momentum components
-      if (i >= momentum_start_idx && i < momentum_start_idx + momentum_dim &&
-          i - momentum_start_idx < 3) {
-        corrected_latents[offset] -= mean_momentum[i - momentum_start_idx];
+    // Enforce zero momentum by setting momentum components to zero
+    for (int i = 0; i < momentum_dim; i++) {
+      int dim_idx = momentum_start_idx + i;
+      if (dim_idx < latent_dim) {
+        int offset = idx * latent_dim + dim_idx;
+        corrected_latents[offset] = 0.0f;
       }
     }
   }
@@ -103,9 +91,7 @@ __global__ void enforce_physics_constraints_kernel(
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (idx < n_samples) {
-    // ------------------------------------------------------------------------
-    // 1. Calculate Energy
-    // ------------------------------------------------------------------------
+    // Step 1: Calculate total energy
     float total_energy = 0.0f;
     for (int i = 0; i < latent_dim; i++) {
       int offset = idx * latent_dim + i;
@@ -113,87 +99,20 @@ __global__ void enforce_physics_constraints_kernel(
       total_energy += val * val;
     }
 
-    // Energy scaling factor
+    // Step 2: Calculate energy scale factor
     float energy_scale = 1.0f;
-    if (total_energy > energy_tolerance) {
+    if (total_energy > energy_tolerance && total_energy > 1e-8f) {
       energy_scale = sqrtf(energy_tolerance / total_energy);
     }
 
-    // ------------------------------------------------------------------------
-    // 2. Calculate Momentum (of energy-corrected state)
-    // ------------------------------------------------------------------------
-    // Note: We apply energy scaling first, then check momentum.
-    // Ideally we solve coupled constraints, but sequential projection is faster
-    // approximation.
-
-    float momentum[3] = {0.0f, 0.0f, 0.0f};
-    int momentum_dim =
-        3; // Assuming momentum is first 3 dimensions for simplicty or derived
-
-    for (int i = 0; i < momentum_dim; i++) {
-      int offset = idx * latent_dim + i;
-      // Use the energy-corrected value for momentum calculation
-      momentum[i] = latents[offset] * energy_scale;
-    }
-
-    // ------------------------------------------------------------------------
-    // 3. Apply Corrections
-    // ------------------------------------------------------------------------
+    // Step 3: Apply corrections
     for (int i = 0; i < latent_dim; i++) {
       int offset = idx * latent_dim + i;
-
-      // Apply energy scaling
       float corrected = latents[offset] * energy_scale;
 
-      // Apply momentum correction (remove mean momentum)
-      // Here we assume momentum should be 0.
+      // Zero out first 3 dimensions (momentum conservation)
       if (i < 3) {
-        corrected -= momentum[i]; // This forces momentum component to 0?
-        // Wait, previous momentum logic was "subtract mean momentum".
-        // If we want total momentum to be 0 for the system, usually it's
-        // summing across particles? BUT here we treat 'latent state' as the
-        // system. If latent state represents N particles, then we sum 3
-        // components per particle. Simplified assumption: The first 3
-        // dimensions ARE the total momentum. To conserve momentum (make it 0),
-        // we set them to 0??
-
-        // Re-reading previous logic:
-        // "Correct momentum components... corrected_latents[offset] -=
-        // mean_momentum[i]" It suggests subtracting the DEVIATION from
-        // conservation.
-
-        // Let's stick to simple projection: Force momentum dimensions to 0 if
-        // they represent total momentum deviation? OR if they represent
-        // velocity, we shift frame.
-
-        // Previous kernel logic was:
-        // Calculate total_momentum (sum of first 3 dims?).
-        // "mean_momentum" = total_momentum.
-        // subtract mean_momentum from... wait, previous logic subtracted
-        // mean_momentum from EACH dimension? "corrected_latents[offset] -=
-        // mean_momentum[i - momentum_start_idx]" This implies shifting the
-        // entire vector?
-
-        // Let's implement a safe standardized constraint:
-        // 1. Scale by energy.
-        // 2. If i < 3, set to 0 (hard constraint) or similar.
-
-        // To match the "momentum conservation" kernel exactly:
-        // It seems to assume the first 3 dims are the momentum vector itself
-        // and it subtracts it from itself? That zeros it out.
-
-        // Let's implement: Zero out first 3 dims? No, that's information loss.
-
-        // Let's assume the previous momentum kernel logic was:
-        // `mean_momentum` calculated from `total_momentum`.
-        // `corrected -= mean_momentum`.
-
-        // I will use a simplified robust approach:
-        // 1. Energy Scale.
-        // 2. Subtract momentum drift from the momentum variables themselves.
-        if (i < 3) {
-          corrected = 0.0f; // Force momentum to zero (Center of Mass frame)
-        }
+        corrected = 0.0f;
       }
 
       corrected_latents[offset] = corrected;
@@ -202,13 +121,14 @@ __global__ void enforce_physics_constraints_kernel(
 }
 
 // ============================================================================
-// Fast Matrix Multiplication Kernel (for tensor operations)
+// Fast Matrix Multiplication Kernel
 // ============================================================================
 
 __global__ void matmul_kernel(const float *__restrict__ A,
                               const float *__restrict__ B,
                               float *__restrict__ C, const int M, const int N,
                               const int K) {
+  const int TILE_SIZE = 32;
   __shared__ float As[32][32];
   __shared__ float Bs[32][32];
 
@@ -217,16 +137,21 @@ __global__ void matmul_kernel(const float *__restrict__ A,
 
   float sum = 0.0f;
 
-  for (int tile = 0; tile < (K + 31) / 32; tile++) {
-    // Load tiles into shared memory
-    if (row < M && (tile * 32 + threadIdx.x) < K) {
-      As[threadIdx.y][threadIdx.x] = A[row * K + tile * 32 + threadIdx.x];
+  int num_tiles = (K + TILE_SIZE - 1) / TILE_SIZE;
+
+  for (int tile = 0; tile < num_tiles; tile++) {
+    // Load tile from A
+    int a_col = tile * TILE_SIZE + threadIdx.x;
+    if (row < M && a_col < K) {
+      As[threadIdx.y][threadIdx.x] = A[row * K + a_col];
     } else {
       As[threadIdx.y][threadIdx.x] = 0.0f;
     }
 
-    if ((tile * 32 + threadIdx.y) < K && col < N) {
-      Bs[threadIdx.y][threadIdx.x] = B[(tile * 32 + threadIdx.y) * N + col];
+    // Load tile from B
+    int b_row = tile * TILE_SIZE + threadIdx.y;
+    if (b_row < K && col < N) {
+      Bs[threadIdx.y][threadIdx.x] = B[b_row * N + col];
     } else {
       Bs[threadIdx.y][threadIdx.x] = 0.0f;
     }
@@ -235,7 +160,7 @@ __global__ void matmul_kernel(const float *__restrict__ A,
 
 // Compute partial sum
 #pragma unroll
-    for (int k = 0; k < 32; k++) {
+    for (int k = 0; k < TILE_SIZE; k++) {
       sum += As[threadIdx.y][k] * Bs[k][threadIdx.x];
     }
 
