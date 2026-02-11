@@ -1,36 +1,47 @@
 """
 FastAPI-based REST API server for ACIE inference
 Replaces the Java Spring Boot server with modern Python async API
+Includes Production Features: Logging, Auth, Caching, GPU support
 """
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field, validator
 from typing import Dict, List, Optional
 import torch
 import numpy as np
 from datetime import datetime
-import logging
 import time
 from pathlib import Path
+import os
 
 from acie.core.acie_core import ACIECore
 from acie.inference.counterfactual import CounterfactualEngine
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Production Features imports
+from acie.logging import logger, RequestLoggingMiddleware
+from acie.security import (
+    Token, login_endpoint, get_current_user, 
+    User, require_role
+)
+from acie.cache import get_cache
+from acie.monitoring import (
+    track_inference, metrics_endpoint, 
+    set_model_count, record_batch_size
+)
 
 # Initialize FastAPI app
 app = FastAPI(
     title="ACIE Inference API",
     description="Astronomical Counterfactual Inference Engine - Production API",
-    version="2.0.0",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# Add CORS middleware
+# Add Middleware
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
@@ -50,6 +61,7 @@ class InferenceRequest(BaseModel):
     observation: List[float] = Field(..., description="Observable values (6000-dim for 10k, 14000-dim for 20k)")
     intervention: Dict[str, float] = Field(..., description="Intervention parameters (e.g., {'mass': 1.5})")
     model_version: str = Field(default="latest", description="Model version to use")
+    use_cache: bool = Field(default=True, description="Whether to use cached results if available")
     
     @validator('observation')
     def validate_observation_dim(cls, v):
@@ -66,6 +78,7 @@ class InferenceResponse(BaseModel):
     model_version: str = Field(..., description="Model version used")
     timestamp: str = Field(..., description="Inference timestamp")
     latency_ms: float = Field(..., description="Inference latency in milliseconds")
+    cached: bool = Field(default=False, description="Whether result was served from cache")
 
 
 class BatchInferenceRequest(BaseModel):
@@ -88,6 +101,7 @@ class HealthResponse(BaseModel):
     models_loaded: List[str]
     gpu_available: bool
     gpu_count: int
+    cache_connected: bool
     timestamp: str
 
 
@@ -99,12 +113,19 @@ class ModelInfo(BaseModel):
     device: str
 
 
-# Startup and shutdown events
+# System Events
 @app.on_event("startup")
-async def load_models():
-    """Load models on startup"""
-    logger.info("Starting ACIE API server...")
+async def startup_event():
+    """Initialize system on startup"""
+    logger.info("Starting ACIE API server v2.1.0...")
     
+    # Initialize Cache
+    cache = get_cache()
+    if cache.is_available():
+        logger.info(f"Connected to Redis cache at {cache.host}:{cache.port}")
+    else:
+        logger.warning("Redis cache not available")
+
     # Check GPU availability
     if torch.cuda.is_available():
         logger.info(f"GPU available: {torch.cuda.get_device_name(0)}")
@@ -113,7 +134,9 @@ async def load_models():
         logger.warning("No GPU available, using CPU")
     
     # Load default model
-    default_model_path = Path("outputs/acie_final.ckpt")
+    model_path_env = os.getenv("MODEL_PATH", "outputs/acie_final.ckpt")
+    default_model_path = Path(model_path_env)
+    
     if default_model_path.exists():
         try:
             logger.info(f"Loading model from {default_model_path}")
@@ -127,6 +150,7 @@ async def load_models():
             
             model_cache["latest"] = model
             cf_engine_cache["latest"] = CounterfactualEngine(model)
+            set_model_count(1)
             
             logger.info("Model loaded successfully")
         except Exception as e:
@@ -143,13 +167,20 @@ async def shutdown_event():
     cf_engine_cache.clear()
 
 
+# Authentication Endpoints
+@app.post("/token", response_model=Token, tags=["Authentication"])
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """Login to get access token"""
+    return await login_endpoint(form_data.username, form_data.password)
+
+
 # API Endpoints
 @app.get("/", tags=["Root"])
 async def root():
     """Root endpoint"""
     return {
         "message": "ACIE Inference API",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "docs": "/docs",
         "health": "/health"
     }
@@ -158,18 +189,20 @@ async def root():
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
     """Health check endpoint"""
+    cache = get_cache()
     return HealthResponse(
         status="healthy" if model_cache else "no_models_loaded",
         models_loaded=list(model_cache.keys()),
         gpu_available=torch.cuda.is_available(),
         gpu_count=torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        cache_connected=cache.is_available(),
         timestamp=datetime.utcnow().isoformat()
     )
 
 
-@app.get("/models", tags=["Models"])
+@app.get("/models", dependencies=[Depends(get_current_user)], tags=["Models"])
 async def list_models():
-    """List all loaded models"""
+    """List all loaded models (Authenticated)"""
     models_info = []
     for version, model in model_cache.items():
         param_count = sum(p.numel() for p in model.parameters())
@@ -185,15 +218,31 @@ async def list_models():
     return {"models": models_info}
 
 
-@app.post("/api/v2/inference/counterfactual", response_model=InferenceResponse, tags=["Inference"])
+@app.post("/api/v2/inference/counterfactual", 
+          response_model=InferenceResponse, 
+          dependencies=[Depends(get_current_user)],
+          tags=["Inference"])
+@track_inference("latest", "counterfactual")
 async def counterfactual_inference(request: InferenceRequest):
     """
-    Perform counterfactual inference
+    Perform counterfactual inference (Authenticated)
     
     Given an observation and intervention, compute the counterfactual distribution
+    Uses Redis caching if enabled.
     """
     start_time = time.time()
+    cache = get_cache()
     
+    # Check cache first
+    if request.use_cache and cache.is_available():
+        cached_result = cache.get_cached_inference(
+            request.observation, 
+            request.intervention,
+            request.model_version
+        )
+        if cached_result:
+            return InferenceResponse(**cached_result, cached=True)
+
     try:
         # Get model
         model = model_cache.get(request.model_version)
@@ -220,20 +269,28 @@ async def counterfactual_inference(request: InferenceRequest):
         counterfactual = result['counterfactual'].cpu().squeeze(0).tolist()
         latent_state = result['latent'].cpu().squeeze(0).tolist()
         confidence = float(result.get('confidence', 0.95))
-        
-        # Calculate latency
         latency_ms = (time.time() - start_time) * 1000
         
-        logger.info(f"Inference completed in {latency_ms:.2f}ms")
+        response_data = {
+            "counterfactual": counterfactual,
+            "latent_state": latent_state,
+            "confidence": confidence,
+            "model_version": request.model_version,
+            "timestamp": datetime.utcnow().isoformat(),
+            "latency_ms": latency_ms,
+            "cached": False
+        }
         
-        return InferenceResponse(
-            counterfactual=counterfactual,
-            latent_state=latent_state,
-            confidence=confidence,
-            model_version=request.model_version,
-            timestamp=datetime.utcnow().isoformat(),
-            latency_ms=latency_ms
-        )
+        # Cache result
+        if request.use_cache and cache.is_available():
+            cache.cache_inference_result(
+                request.observation,
+                request.intervention,
+                request.model_version,
+                response_data
+            )
+        
+        return InferenceResponse(**response_data)
         
     except Exception as e:
         logger.error(f"Inference failed: {e}")
@@ -243,10 +300,13 @@ async def counterfactual_inference(request: InferenceRequest):
         )
 
 
-@app.post("/api/v2/inference/batch", response_model=BatchInferenceResponse, tags=["Inference"])
+@app.post("/api/v2/inference/batch", 
+          response_model=BatchInferenceResponse, 
+          dependencies=[Depends(require_role("batch_user"))],
+          tags=["Inference"])
 async def batch_inference(request: BatchInferenceRequest):
     """
-    Perform batch counterfactual inference
+    Perform batch counterfactual inference (Role: batch_user)
     
     Process multiple observations in a single request
     """
@@ -256,18 +316,63 @@ async def batch_inference(request: BatchInferenceRequest):
             detail="Number of observations must match number of interventions"
         )
     
+    record_batch_size(len(request.observations))
+    
     results = []
     failed_count = 0
     
     for obs, intervention in zip(request.observations, request.interventions):
         try:
+            # Re-use single inference logic (could be optimized for true batch processing later)
             single_request = InferenceRequest(
                 observation=obs,
                 intervention=intervention,
-                model_version=request.model_version
+                model_version=request.model_version,
+                use_cache=True
             )
-            result = await counterfactual_inference(single_request)
-            results.append(result)
+            # Directly call implementation logic would be better, but calling endpoint handler functions works nicely in FastAPI utils usually. 
+            # However, here we have dependency injection which makes direct calls tricky without context.
+            # For simplicity in this non-refactor step, we'll manually invoke logic or use a helper. 
+            # Ideally, extract business logic to controller/service layer.
+            # We'll do a direct call to the caching/inference logic here for efficiency.
+            
+            # --- Inline logic for batch ---
+            cache = get_cache()
+            cached = None
+            if cache.is_available():
+                cached = cache.get_cached_inference(obs, intervention, request.model_version)
+            
+            if cached:
+                results.append(InferenceResponse(**cached, cached=True))
+                continue
+                
+            model = model_cache.get(request.model_version)
+            cf_engine = cf_engine_cache.get(request.model_version)
+            
+            if not model: 
+                failed_count += 1
+                continue
+                
+            obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+            if torch.cuda.is_available(): obs_tensor = obs_tensor.cuda()
+            
+            with torch.no_grad():
+                res = cf_engine.generate_counterfactual(obs_tensor, intervention)
+                
+            resp_data = {
+                "counterfactual": res['counterfactual'].cpu().squeeze(0).tolist(),
+                "latent_state": res['latent'].cpu().squeeze(0).tolist(),
+                "confidence": float(res.get('confidence', 0.95)),
+                "model_version": request.model_version,
+                "timestamp": datetime.utcnow().isoformat(),
+                "latency_ms": 0.0, # Batch latency hard to attribute per item approx
+                "cached": False
+            }
+            if cache.is_available():
+                cache.cache_inference_result(obs, intervention, request.model_version, resp_data)
+            results.append(InferenceResponse(**resp_data))
+            # ---------------------------
+
         except Exception as e:
             logger.error(f"Batch item failed: {e}")
             failed_count += 1
@@ -279,21 +384,8 @@ async def batch_inference(request: BatchInferenceRequest):
     )
 
 
-@app.get("/metrics", tags=["Monitoring"])
-async def metrics():
-    """
-    Prometheus-compatible metrics endpoint
-    """
-    # TODO: Integrate with prometheus_client
-    gpu_memory = 0
-    if torch.cuda.is_available():
-        gpu_memory = torch.cuda.memory_allocated() / 1024**2  # MB
-    
-    return {
-        "models_loaded": len(model_cache),
-        "gpu_memory_mb": gpu_memory,
-        "gpu_available": torch.cuda.is_available(),
-    }
+# Metrics Endpoint
+app.add_route("/metrics", metrics_endpoint)
 
 
 # Main entry point
@@ -306,5 +398,5 @@ if __name__ == "__main__":
         port=8080,
         workers=4,
         log_level="info",
-        reload=False  # Set to True for development
+        reload=False
     )
