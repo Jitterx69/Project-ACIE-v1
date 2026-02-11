@@ -1,0 +1,102 @@
+# GPU-Optimized Training Configuration for ACIE
+# Enables multi-GPU training with mixed precision and advanced optimizations
+
+model:
+  latent_dim: 2000
+  observable_dim: 6000
+  noise_dim: 2000
+  hidden_dims: [1024, 512, 256]
+  activation: "gelu"
+  dropout: 0.1
+  use_batch_norm: true
+
+training:
+  # GPU acceleration settings
+  accelerator: "gpu"
+  devices: 4 # Number of GPUs to use (-1 for all available)
+  precision: 16 # Mixed precision: 16 (FP16), "bf16" (BF16), or 32 (FP32)
+  strategy: "ddp" # Distributed Data Parallel
+
+  # Training hyperparameters
+  max_epochs: 100
+  batch_size: 256 # Per GPU batch size
+  accumulate_grad_batches: 2 # Gradient accumulation for larger effective batch
+  learning_rate: 5e-4
+  weight_decay: 1e-5
+
+  # Optimizer settings
+  optimizer:
+    name: "adamw"
+    betas: [0.9, 0.999]
+    eps: 1e-8
+    amsgrad: false
+
+  # Learning rate scheduler
+  scheduler:
+    name: "cosine_annealing"
+    T_max: 100
+    eta_min: 1e-6
+    warmup_epochs: 5
+
+  # Early stopping
+  early_stopping:
+    monitor: "val_loss"
+    patience: 10
+    mode: "min"
+
+  # Checkpointing
+  checkpoint:
+    monitor: "val_loss"
+    save_top_k: 3
+    mode: "min"
+    save_last: true
+
+# CUDA-specific optimizations
+cuda:
+  cudnn_benchmark: true # Optimize cuDNN convolution algorithms
+  cudnn_deterministic: false # Set to true for reproducibility (slower)
+  tf32: true # Enable TF32 on Ampere+ GPUs (A100, H100)
+  allow_tf32: true
+  cuda_launch_blocking: false # Set to true for debugging
+
+# Loss function weights
+losses:
+  reconstruction_weight: 1.0
+  kl_divergence_weight: 0.1
+  physics_constraint_weight: 5.0
+  identifiability_weight: 2.0
+  intervention_consistency_weight: 1.5
+
+# Physics constraints
+physics:
+  energy_conservation_tolerance: 1e-4
+  momentum_conservation_tolerance: 1e-4
+  enable_differentiable_physics: true
+  constraint_activation: "softplus"
+
+# Data loading (optimized for GPU)
+data:
+  num_workers: 8 # Number of CPU workers for data loading
+  pin_memory: true # Pin memory for faster GPU transfer
+  persistent_workers: true # Keep workers alive between epochs
+  prefetch_factor: 4 # Prefetch batches per worker
+
+# Logging and monitoring
+logging:
+  log_every_n_steps: 10
+  log_gpu_memory: true
+  log_gradients: true
+  log_weights: false
+  experiment_name: "acie_gpu_training"
+
+# Profiling (for performance optimization)
+profiler:
+  enabled: false # Set to true to profile GPU performance
+  profiler_type: "pytorch" # "simple", "advanced", or "pytorch"
+  output_filename: "profile_results"
+
+# Model compilation (PyTorch 2.0+)
+compile:
+  enabled: false # Enable torch.compile for speedup
+  mode: "default" # "default", "reduce-overhead", or "max-autotune"
+  backend: "inductor"

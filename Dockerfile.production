@@ -1,0 +1,114 @@
+# Production-Ready Multi-Stage Dockerfile for ACIE
+# Optimized for GPU inference with CUDA support
+
+# ============================================================================
+# Stage 1: Builder - Compile dependencies and build wheels
+# ============================================================================
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    build-essential \
+    git \
+    wget \
+    nasm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+# Set working directory
+WORKDIR /build
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies and build wheels
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
+    pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+# Copy source code
+COPY . .
+
+# Build ACIE package
+RUN python3 setup.py bdist_wheel && \
+    cp dist/*.whl /wheels/
+
+# Build Rust components
+WORKDIR /build/rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env && \
+    cargo build --release
+
+# Build Assembly components
+WORKDIR /build/asm
+RUN make
+
+# ============================================================================
+# Stage 2: Runtime - Minimal image for production
+# ============================================================================
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    CUDA_VISIBLE_DEVICES=0 \
+    MODEL_PATH=/models/acie_final.ckpt \
+    CONFIG_PATH=/config/gpu_config.yaml
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user for security
+RUN useradd -m -u 1000 acie && \
+    mkdir -p /app /models /config /logs && \
+    chown -R acie:acie /app /models /config /logs
+
+# Set working directory
+WORKDIR /app
+
+# Copy built wheels from builder
+COPY --from=builder /wheels /wheels
+
+# Install PyTorch and dependencies from wheels
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install --no-cache-dir /wheels/*.whl && \
+    rm -rf /wheels
+
+# Copy compiled Rust and Assembly libraries
+COPY --from=builder /build/rust/target/release/*.so /app/lib/
+COPY --from=builder /build/asm/*.so /app/lib/
+
+# Copy application code
+COPY --chown=acie:acie acie/ /app/acie/
+COPY --chown=acie:acie config/ /config/
+COPY --chown=acie:acie scripts/ /app/scripts/
+
+# Set library path
+ENV LD_LIBRARY_PATH=/app/lib:$LD_LIBRARY_PATH
+
+# Expose ports
+EXPOSE 8080 50051
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+
+# Switch to non-root user
+USER acie
+
+# Default command - run FastAPI server
+CMD ["python3", "-m", "uvicorn", "acie.api.fastapi_server:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
