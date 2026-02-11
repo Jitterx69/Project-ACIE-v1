@@ -1,7 +1,7 @@
-"""
-CUDA Physics Constraints Kernel
-High-performance GPU kernel for enforcing physics constraints
-"""
+/*
+ * CUDA Physics Constraints Kernel
+ * High-performance GPU kernel for enforcing physics constraints
+ */
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -23,12 +23,8 @@ High-performance GPU kernel for enforcing physics constraints
 // ============================================================================
 
 __global__ void enforce_energy_conservation_kernel(
-    const float* __restrict__ latents,
-    float* __restrict__ corrected_latents,
-    const int n_samples,
-    const int latent_dim,
-    const float tolerance
-) {
+    const float *__restrict__ latents, float *__restrict__ corrected_latents,
+    const int n_samples, const int latent_dim, const float tolerance) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (idx < n_samples) {
