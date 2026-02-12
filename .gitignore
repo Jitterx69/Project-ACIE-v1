@@ -47,7 +47,10 @@ lib/*.csv
 # Environment
 .env
 venv/
+venv_new/
+venv_remote/
 env/
+*.zip
 
 # Testing
 .pytest_cache/

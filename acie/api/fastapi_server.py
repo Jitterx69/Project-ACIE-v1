@@ -16,15 +16,75 @@ import time
 from pathlib import Path
 import os
 
-from acie.core.acie_core import ACIEEngine
 
-# ... imports ...
+from acie.core.acie_core import ACIEEngine
+from acie.security.auth import Token, login_endpoint, get_current_user, require_role
+from acie.cache.redis_cache import get_cache
+from acie.monitoring.metrics import record_batch_size, track_inference
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("acie.api")
+
+app = FastAPI(
+    title="ACIE Inference API",
+    description="Astronomical Counterfactual Inference Engine API",
+    version="2.1.0",
+)
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Models
+class HealthResponse(BaseModel):
+    status: str
+    models_loaded: List[str]
+    gpu_available: bool
+    gpu_count: int
+    cache_connected: bool
+    timestamp: str
+
+class ModelInfo(BaseModel):
+    version: str
+    loaded_at: str
+    parameters: int
+    device: str
+
+class InferenceRequest(BaseModel):
+    observation: List[float]
+    intervention: Dict[str, float]
+    model_version: str = "latest"
+    use_cache: bool = True
+
+class InferenceResponse(BaseModel):
+    counterfactual: List[float]
+    latent_state: List[float]
+    confidence: float
+    model_version: str
+    timestamp: str
+    latency_ms: float
+    cached: bool
+
+class BatchInferenceRequest(BaseModel):
+    observations: List[List[float]]
+    interventions: List[Dict[str, float]]
+    model_version: str = "latest"
+
+class BatchInferenceResponse(BaseModel):
+    results: List[InferenceResponse]
+    total_count: int
+    failed_count: int
 
 # Global model cache
 model_cache: Dict[str, ACIEEngine] = {}
-# cf_engine_cache removed as it's part of ACIEEngine
-
-# ...
 
 @app.on_event("startup")
 async def startup_event():
