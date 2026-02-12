@@ -7,12 +7,14 @@ OUTPUT_ZIP="ACIE_Project.zip"
 
 echo "Creating $OUTPUT_ZIP for Google Colab..."
 
-# Create zip with ONLY the files needed for training
+# Create zip with ONLY the ESSENTIAL files for training
+# Excludes frontends, other languages, docs, tests, and local envs
 zip -r "$OUTPUT_ZIP" \
     acie/ \
     config/ \
     setup.py \
     requirements.txt \
+    .env.example \
     README.md
 
 echo "Done! Upload '$OUTPUT_ZIP' to your Google Drive to train on Colab."
