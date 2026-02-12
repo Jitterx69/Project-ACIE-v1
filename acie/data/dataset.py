@@ -268,7 +268,65 @@ class MultiDatasetLoader:
                 )
                 print(f"Loaded {intervention_type} dataset: {len(self.datasets[intervention_type])} samples")
 
-
+    def get_combined_loader(self, dataset_size: str = "20k"):
+        """
+        Create a combined loader using ALL available compatible data.
+        
+        Combines:
+        1. Observational data
+        2. Intervention/Shift data (treated as observational)
+        
+        Returns:
+            DataLoader for the combined dataset
+        """
+        datasets_to_combine = []
+        
+        # 1. Load Standard Observational
+        self.load_observational(dataset_size)
+        if "observational" in self.datasets:
+            datasets_to_combine.append(self.datasets["observational"])
+            
+        # 2. Load Shifts/Interventions (Only available for 20k usually, but we check)
+        # These files are structured same as observational (latent, obs, noise)
+        shift_types = ["hard_intervention", "environment_shift", "instrument_shift"]
+        
+        dim_suffix = "20k_x_20k" if dataset_size == "20k" else f"{dataset_size}_x_{dataset_size}"
+        
+        # Check dimensions for this size
+        latent_dim = 2000 if dataset_size == "10k" else 4000
+        obs_dim = 6000 if dataset_size == "10k" else 11000
+        noise_dim = 2000 if dataset_size == "10k" else 5000
+        
+        for s_type in shift_types:
+            # Try both exact match and generic 20k if user is requesting 20k
+            fname = f"acie_{s_type}_{dim_suffix}.csv"
+            path = self.data_dir / fname
+            
+            if path.exists():
+                print(f"Found supplementary dataset: {fname}")
+                dset = ACIEDataset(
+                    path,
+                    latent_dim=latent_dim,
+                    obs_dim=obs_dim,
+                    noise_dim=noise_dim,
+                    max_rows=self.max_rows,
+                )
+                datasets_to_combine.append(dset)
+        
+        if not datasets_to_combine:
+            print("No datasets found to combine!")
+            return None
+            
+        # Combine them
+        full_dataset = torch.utils.data.ConcatDataset(datasets_to_combine)
+        print(f"Combined Training Set: {len(full_dataset)} total samples from {len(datasets_to_combine)} files.")
+        
+        return DataLoader(
+            full_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+        )
 def create_dataloaders(
     data_dir: Path,
     batch_size: int = 32,
@@ -297,5 +355,8 @@ def create_dataloaders(
     )
     
     loader.load_all(dataset_size=dataset_size)
+    
+    # Create a "combined" loader option
+    loader.loaders["combined"] = loader.get_combined_loader(dataset_size)
     
     return loader.loaders

@@ -289,7 +289,18 @@ def train_acie(
     )
     
     # Select appropriate dataloader
-    if use_counterfactual and "counterfactual" in dataloaders:
+    # Select appropriate dataloader
+    # Priority:
+    # 1. Combined (All observational + shifts) -> Best for "Train with everything"
+    # 2. Counterfactual (if specifically requested and available)
+    # 3. Observational (fallback)
+    
+    if "combined" in dataloaders:
+        print("Using COMBINED dataset (Standard + Interventions/Shifts)")
+        train_loader = dataloaders["combined"]
+        # Use simple observational for validation to be consistent
+        val_loader = dataloaders.get("observational")
+    elif use_counterfactual and "counterfactual" in dataloaders:
         train_loader = dataloaders["counterfactual"]
         val_loader = dataloaders.get("counterfactual")
     else:
