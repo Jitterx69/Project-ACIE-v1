@@ -27,28 +27,34 @@ The system employs a hybrid architecture combining **PyTorch** for deep learning
    - [Structural Causal Models](#structural-causal-models-scm)
    - [Variational Inference](#variational-inference)
    - [Physics Constraints](#physics-constraints)
-3. [Core Components Deep Dive](#core-components-deep-dive)
+3. [Secure AI & Cryptography (ACIE-H)](#secure-ai--cryptography-acie-h)
+   - [Homomorphic Encryption](#homomorphic-encryption-acie-h)
+   - [Secure Pipeline](#secure-pipeline)
+   - [CryptoEngine](#cryptoengine)
+4. [Core Components Deep Dive](#core-components-deep-dive)
    - [Python: Inference Engine](#python-inference-engine)
    - [Rust: Tensor Operations](#rust-tensor-operations)
    - [Assembly: Matrix Kernels](#assembly-matrix-kernels)
    - [Java: API Gateway](#java-api-gateway)
-4. [Installation & Setup](#installation--setup)
+5. [Project Structure](#project-structure)
+6. [Installation & Setup](#installation--setup)
    - [Source Build](#source-build)
    - [Docker Deployment](#docker-deployment)
    - [Kubernetes (K8s)](#kubernetes-k8s)
-5. [Usage Guide](#usage-guide)
+7. [Usage Guide](#usage-guide)
    - [Command Line Interface (CLI)](#command-line-interface-cli)
    - [Python SDK](#python-sdk)
+   - [Secure Inference SDK](#secure-inference-sdk)
    - [REST API Reference](#rest-api-reference)
-6. [Configuration Reference](#configuration-reference)
-7. [MLOps & Production](#mlops--production)
+8. [Configuration Reference](#configuration-reference)
+9. [MLOps & Production](#mlops--production)
    - [Experiment Tracking](#experiment-tracking)
    - [Model Registry](#model-registry)
    - [Monitoring](#monitoring)
-8. [Performance Benchmarks](#performance-benchmarks)
-9. [Troubleshooting](#troubleshooting)
-10. [Citation](#citation)
-11. [License](#license)
+10. [Performance Benchmarks](#performance-benchmarks)
+11. [Troubleshooting](#troubleshooting)
+12. [Citation](#citation)
+13. [License](#license)
 
 ---
 
@@ -167,6 +173,31 @@ This term is computed using **automatic differentiation** through the physics la
 
 ---
 
+## Secure AI & Cryptography (ACIE-H)
+
+ACIE now includes a proprietary **Homomorphic Encryption** scheme and a centralized **CryptoEngine**, allowing for end-to-end secure pipelines where data remains encrypted even during computation.
+
+### Homomorphic Encryption (ACIE-H)
+Located in `acie/cipher_embeddings/`, **ACIE-H** is a Paillier-variant implementation that enables "Calculative Purpose" on ciphertext.
+
+*   **Algorithm**: Encrypts integers $m$ into ciphertext $c = g^m \cdot r^n \pmod{n^2}$.
+*   **Capability**: Supports **Additive Homomorphism** ($E(a) + E(b)$) and **Scalar Multiplication** ($E(a) \times k$) directly on encrypted data.
+*   **Privacy**: The inference engine computes $z = W \cdot E(x) + b$ without ever seeing the input $x$.
+
+### Secure Pipeline
+The project implements a full "Zero-Trust" secure image pipeline (`scripts/secure_image_pipeline.py`):
+1.  **Input**: Astronomical Image (Stars/Galaxies).
+2.  **Integrity**: Generates a **GOST** hash of the file content (via `strings` + `openssl`) to create a unique, tamper-proof Fingerprint.
+3.  **Classification**: Feeds pixels to a **CNN** (`acie/models/cnn.py`) for automated classification (e.g., Spiral vs. Elliptical).
+4.  **Storage**: Encrypts the image using **RC2** (128-bit) for secure archival.
+
+### CryptoEngine
+A unified wrapper (`acie/cipher_embeddings/engine.py`) that orchestrates all cryptographic primitives:
+*   **OpenSSL Integration**: Robustly calls system-level `openssl` for widely vetted algorithms (RC2, GOST).
+*   **Key Management**: Handles session keys and file-level encryption recursively for entire project directories (`scripts/encrypt_project.py`).
+
+---
+
 ## Core Components Deep Dive
 
 ### Python: Inference Engine
@@ -189,6 +220,91 @@ Located in `asm/`.
 Located in `java/`.
 -   **Role**: Provides a robust, enterprise-ready HTTP interface.
 -   **Integration**: Uses a local socket bridge to communicate with the Python inference engine, ensuring thread isolation and stability.
+
+---
+
+---
+
+## Project Structure
+
+The project uses a clean, modular structure organized by language and function:
+
+```
+ACIE/
+├── acie/                       # Core Python Source Code
+│   ├── __init__.py             # Exports ACIEEngine, Secure Modules
+│   ├── cipher_embeddings/      # [NEW] Secure AI & Cryptography
+│   │   ├── __init__.py
+│   │   ├── acie_h.py           # Homomorphic Cipher (Paillier)
+│   │   ├── engine.py           # CryptoEngine (RC2/GOST)
+│   │   ├── tensor.py           # CipherTensor (Encrypted Math)
+│   │   ├── ACIE_H_THEORY.md    # Mathematical Proofs
+│   │   └── ACIE_H_WHITE_PAPER.md # Technical Specification
+│   ├── core/                   # Inference System
+│   │   ├── acie_core.py        # Main ACIEEngine Class
+│   │   ├── scm.py              # Structural Causal Model Graph
+│   │   └── ...
+│   ├── data/                   # Data Loading
+│   │   ├── dataset.py          # Standard DataLoader
+│   │   └── secure_dataset.py   # [NEW] Secure Encrypted Loader
+│   ├── models/                 # Neural Networks
+│   │   ├── cnn.py              # [NEW] Secure Image Classifier
+│   │   ├── secure_layers.py    # [NEW] Homomorphic Linear Layers
+│   │   ├── networks.py         # VAE Encoder/Decoder
+│   │   └── physics_layers.py   # Differentiable Physics
+│   ├── inference/              # Inference Logic
+│   └── utils/                  # Utilities
+├── asm/                        # Assembly Language Kernels
+│   ├── Makefile
+│   └── matrix_ops.asm          # AVX-512 Matrix Ops
+├── config/                     # Configuration
+│   ├── model_config.yaml
+│   └── production.yaml
+├── docs/                       # Documentation
+│   ├── setup_guides/           # Installation & Guides
+│   │   ├── COLAB_TRAINING_GUIDE.md
+│   │   └── REMOTE_TRAINING.md
+│   └── legacy_documentation/   # Archive
+├── frontend/                   # React Web Dashboard
+│   ├── src/                    # UI Source
+│   ├── public/                 # Assets
+│   └── package.json
+├── java/                       # Java Microservices API
+│   ├── src/main/java/          # Spring Boot App
+│   └── pom.xml
+├── k8s/                        # Kubernetes Manifests
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── ...
+├── lib/                        # Data Generation Scripts
+├── monitoring/                 # Observability
+│   ├── grafana/                # Dashboards
+│   └── prometheus.yml          # Metrics Config
+├── notebooks/                  # Jupyter Experiments
+├── protos/                     # gRPC Protobuf Definitions
+│   └── acie.proto
+├── rust/                       # Rust Tensor Accelerator
+│   ├── src/lib.rs              # PyO3 Bindings
+│   └── Cargo.toml
+├── scripts/                    # Utilities & Automation
+│   ├── encrypt_project.py      # [NEW] Recursive Project Encryption
+│   ├── secure_calculation_demo.py # [NEW] Homomorphic Math Demo
+│   ├── secure_image_pipeline.py # [NEW] Secure Image Workflow
+│   ├── secure_inference_demo.py # [NEW] End-to-End Secure ML Demo
+│   ├── train_quickstart.py     # Training Scripts
+│   ├── deploy.sh               # Deployment Scripts
+│   └── setup_remote.sh         # Remote Setup
+├── tests/                      # Testing Suite
+│   ├── unit/
+│   ├── integration/
+│   └── test_mps_physics.py
+├── .gitignore
+├── Dockerfile.production
+├── Makefile                    # Build Orchestration
+├── README.md                   # This Document
+├── requirements.txt            # Python Dependencies
+└── setup.py                    # Package Installation
+```
 
 ---
 
@@ -278,6 +394,31 @@ task = client.infer_async(
 )
 
 print(f"Task ID: {task.id}")
+
+### Secure Inference SDK
+
+Perform inference on encrypted data using ACIE-H:
+
+```python
+from acie import SecureLinear, CipherTensor, ACIEHomomorphicCipher
+
+# 1. Initialize Cipher
+cipher = ACIEHomomorphicCipher(key_size=1024)
+
+# 2. Encrypt Data (Client Side)
+inputs = [10, 20, 30]
+encrypted_inputs = [cipher.encrypt(x) for x in inputs]
+secure_tensor = CipherTensor(encrypted_inputs, cipher)
+
+# 3. Secure Inference (Server Side - Blind)
+# Model has weights W, but never sees input x
+model = SecureLinear(in_features=3, out_features=1)
+encrypted_result = model(secure_tensor)
+
+# 4. Decrypt Result (Client Side)
+result = encrypted_result.decrypt()
+print(f"Result: {result}")
+```
 ```
 
 ### REST API Reference
