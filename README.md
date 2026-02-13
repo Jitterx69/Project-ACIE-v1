@@ -517,7 +517,7 @@ Tests conducted on **AWS p4d.24xlarge** (8x A100 40GB).
 
 ```bibtex
 @software{acie_2026,
-  author = {ACIE Development Team},
+  author = {ACIE by Mohit Ranjan},
   title = {Astronomical Counterfactual Inference Engine},
   year = {2026},
   publisher = {GitHub},
