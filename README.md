@@ -196,6 +196,14 @@ A unified wrapper (`acie/cipher_embeddings/engine.py`) that orchestrates all cry
 *   **OpenSSL Integration**: Robustly calls system-level `openssl` for widely vetted algorithms (RC2, GOST).
 *   **Key Management**: Handles session keys and file-level encryption recursively for entire project directories (`scripts/encrypt_project.py`).
 
+### Secure RAG Pipeline
+Located in `acie/rag/`, this production-grade pipeline enables **Retrieval-Augmented Generation** on encrypted images.
+
+1.  **Ingestion**: Images are loaded, resized, and encrypted into `CipherTensor` objects using the Paillier cryptosystem.
+2.  **Retrieval**: Context (e.g., model weights, prototype vectors) is retrieved based on plaintext metadata.
+3.  **Secure Generation**: The `SecureGenerationModel` executes inference using `SecureLinear` layers, dynamically modulating the process with the retrieved context.
+4.  **Zero-Trust**: The inputs remain encrypted throughout the entire inference process.
+
 ---
 
 ## Core Components Deep Dive
@@ -253,6 +261,13 @@ ACIE/
 │   │   ├── networks.py         # VAE Encoder/Decoder
 │   │   └── physics_layers.py   # Differentiable Physics
 │   ├── inference/              # Inference Logic
+│   ├── rag/                    # [NEW] Secure RAG Pipeline
+│   │   ├── __init__.py
+│   │   ├── config.py           # RAG Configuration
+│   │   ├── pipeline.py         # Main Orchestration
+│   │   ├── ingestion.py        # Image Encryption
+│   │   ├── retrieval.py        # Context Retrieval
+│   │   └── generation.py       # Secure Inference
 │   └── utils/                  # Utilities
 ├── asm/                        # Assembly Language Kernels
 │   ├── Makefile
@@ -418,6 +433,25 @@ encrypted_result = model(secure_tensor)
 # 4. Decrypt Result (Client Side)
 result = encrypted_result.decrypt()
 print(f"Result: {result}")
+```
+
+### Secure RAG Example
+
+```python
+from acie.rag import HEImageRAGPipeline
+from acie.rag.config import RAGConfig
+
+# 1. Initialize Pipeline
+config = RAGConfig(key_size=2048)
+pipeline = HEImageRAGPipeline(config)
+
+# 2. Add Context
+# context_weights = ...
+pipeline.add_context("galaxy_v1", context_weights)
+
+# 3. Run Secure RAG
+result = pipeline.run("image.png", {"query_key": "galaxy_v1"})
+print(f"Decrypted Result: {result}")
 ```
 ```
 

@@ -1,5 +1,5 @@
 # ACIE-H: Analytical Cipher for Intelligent Embeddings (Homomorphic)
-**Technical White Paper & System Specification**
+**Technical Ideation & System Specification**
 
 **Version:** 1.0.0
 **Date:** February 13, 2026
@@ -8,7 +8,7 @@
 ---
 
 ## 1. Abstract
-The **ACIE-H (Analytical Cipher for Intelligent Embeddings - Homomorphic)** is a proprietary cryptographic system designed to enable privacy-preserving computation on sensitive astronomical and physical datasets. Unlike traditional encryption schemes (AES/RC2) which require data to be decrypted before processing, ACIE-H allows mathematical operations—specifically addition and scalar multiplication—to be performed directly on the ciphertext. This ensures that the underlying data remains encrypted throughout the entire computational pipeline ("Data in Use"), exposing only the final result to authorized entities with the private key.
+The **ACIE-H (Analytical Cipher for Intelligent Embeddings - Homomorphic)** is a proprietary cryptographic system designed to enable privacy-preserving computation on sensitive astronomical and physical datasets. Unlike traditional encryption schemes (AES/RC2) which require data to be decrypted before processing, ACIE-H allows mathematical operations, specifically addition and scalar multiplication, to be performed directly on the ciphertext. This ensures that the underlying data remains encrypted throughout the entire computational pipeline ("Data in Use"), exposing only the final result to authorized entities with the private key.
 
 ## 2. Problem Statement
 Standard encryption methods (Symmetric/Asymmetric) protect data at rest (storage) and in transit (network). However, they fail to protect data during computation (in use). To compute a weighted average of galaxy fluxes or combine multi-modal sensor inputs, traditional systems must decrypt the data in memory, exposing it to potential side-channel attacks, memory dumps, or compromised runtime environments.
