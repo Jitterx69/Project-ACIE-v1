@@ -62,4 +62,53 @@ impl RustPaillier {
 
         Ok(a.modpow(&k_big, &self.nsquare).to_string())
     }
+
+    /// Batch encryption of a list of integers
+    #[pyo3(text_signature = "($self, m_list)")]
+    fn encrypt_batch(&self, m_list: Vec<i64>) -> Vec<String> {
+        // We use parallel iteration if the list is large enough, 
+        // but here we demonstrate basic usage. Parallelizing BigInt ops is good.
+        // Assuming we add `rayon` to imports if we want true parallelism here.
+        // For simplicity and to match existing imports, we do sequential or minimal parallel.
+        
+        // Actually, let's use the thread_rng per thread if we parallelize.
+        // Since `encrypt` is &self, it's thread safe if internal state is immutable.
+        // `self.n` is immutable.
+        
+        // Note: We need to make sure we don't share the RNG incorrectly if using rayon par_iter
+        // But encrypt creates its own rng. 
+        
+        // Let's stick to sequential for this specific snippet unless we add rayon imports to this file.
+        // Step 1880 showed imports: num_bigint, pyo3, rand. No rayon.
+        // I will stick to sequential to avoid needing to add imports at top of file via replace (which is tricky with context).
+        // Or I can update imports in a separate call? 
+        // I'll just do sequential map for now, fast enough for batch < 1000.
+        
+        m_list.iter().map(|&m| self.encrypt(m)).collect()
+    }
+    
+    /// Homomorphic Dot Product: E(x) dot y = E(sum(x_i * y_i))
+    /// x_encrypted: List of cipherstrings
+    /// y_plain: List of integers
+    #[pyo3(text_signature = "($self, x_encrypted, y_plain)")]
+    fn dot_product(&self, x_encrypted: Vec<String>, y_plain: Vec<i64>) -> PyResult<String> {
+        if x_encrypted.len() != y_plain.len() {
+            return Err(PyValueError::new_err("Vector length mismatch"));
+        }
+        
+        let mut result_accum = BigInt::one(); // 1 is identity for Paillier addition (multiplication in ciphertext)
+        
+        for (c_str, &k) in x_encrypted.iter().zip(y_plain.iter()) {
+            let c: BigInt = c_str.parse().map_err(|_| PyValueError::new_err("Invalid ciphertext"))?;
+            let k_big = BigInt::from(k);
+            
+            // E(x)^k = E(x*k)
+            let term = c.modpow(&k_big, &self.nsquare);
+            
+            // Accumulate: E(a) * E(b) = E(a+b)
+            result_accum = (result_accum * term) % &self.nsquare;
+        }
+        
+        Ok(result_accum.to_string())
+    }
 }

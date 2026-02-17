@@ -66,6 +66,7 @@ fn load_csv_parallel(
 }
 
 pub mod acie_crypto;
+pub mod sparse;
 
 /// Python module definition
 #[pymodule]
@@ -77,5 +78,9 @@ fn acie_core(_py: Python, m: &PyModule) -> PyResult<()> {
 
     // Register Paillier Class
     m.add_class::<acie_crypto::RustPaillier>()?;
+
+    // Register Sparse Matrix
+    m.add_class::<sparse::SparseMatrix>()?;
+
     Ok(())
 }

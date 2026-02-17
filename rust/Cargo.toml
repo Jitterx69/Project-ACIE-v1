@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Core numerical
-ndarray = "0.15"
+ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-linalg = "0.16"
 rayon = "1.10"
 petgraph = "0.6"

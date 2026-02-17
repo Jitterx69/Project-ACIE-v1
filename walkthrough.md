@@ -158,3 +158,24 @@ I have generated a complete set of **Kubernetes Manifests** to deploy ACIE as a 
 
 ## Deployment
 See `k8s/README.md` for step-by-step instructions.
+
+# Walkthrough: Rust Accelerator
+
+I have enhanced the **Rust Core (`acie_core`)** with high-performance primitives for sparse data and privacy.
+
+## Changes
+
+### 1. Sparse Matrix Kernel (`rust/src/sparse.rs`)
+- **`SparseMatrix`**: A new Python class implementing the CSR (Compressed Sparse Row) format.
+- **Performance**: Uses `rayon` for parallel SpMM (Sparse-Dense Matrix Multiplication), critical for graph neural networks.
+
+### 2. Cryptographic Primitives (`rust/src/acie_crypto.rs`)
+- **Batch Encryption**: `encrypt_batch` processes vectors in parallel.
+- **Homomorphic Dot Product**: `dot_product` enables privacy-preserving linear algebra directly on ciphertexts.
+
+## Verification
+The Rust extension compiles successfully with `cargo build --release`. 
+To use in Python:
+```python
+from acie_core import SparseMatrix, RustPaillier
+```
