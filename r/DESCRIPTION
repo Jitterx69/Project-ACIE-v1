@@ -1,0 +1,30 @@
+Package: ACIEr
+Type: Package
+Title: Advanced Causal Inference Engine for R
+Version: 0.1.0
+Author: ACIE Team
+Maintainer: ACIE Team <team@acie.ai>
+Description: Provides R interface and advanced statistical analysis tools for the ACIE system.
+    Includes causal discovery, counterfactual evaluation, and sensitivity analysis.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Imports:
+    reticulate,
+    ggplot2,
+    dplyr,
+    tidyr,
+    purrr,
+    pcalg,
+    bnlearn,
+    Rtsne,
+    plotly,
+    shiny,
+    shinydashboard,
+    lme4,
+    spatstat
+Suggests:
+    testthat,
+    knitr,
+    rmarkdown
+RoxygenNote: 7.2.3

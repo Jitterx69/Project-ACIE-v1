@@ -1,0 +1,97 @@
+---
+title: "`r params$title`"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    toc: true
+params:
+  model_path: ""
+  data_path: ""
+  title: "ACIE Analysis Report"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(ACIEr)
+library(ggplot2)
+library(dplyr)
+```
+
+# Introduction
+
+This report analyzes the causal structure and counterfactual predictions of the ACIE model.
+
+## Model Summary
+
+```{r model-load}
+model <- load_acie_model(params$model_path)
+print(paste("Loaded model from:", params$model_path))
+```
+
+## Data Overview
+
+```{r data-load}
+data <- read.csv(params$data_path)
+summary(data)
+```
+
+# Causal Discoveries
+
+We apply the PC Algorithm to infer the causal graph from observational data.
+
+```{r causal}
+tryCatch({
+  cpdag <- discover_causal_structure(data[,-1], alpha = 0.05) # Assume correlation on numeric cols
+  plot(cpdag, main = "Estimated CPDAG")
+}, error = function(e) {
+  print("Error in Causal Discovery (likely insufficient data or NAs):")
+  print(e)
+})
+```
+
+# Latent Space Analysis
+
+Visualizing the high-dimensional physical manifold.
+
+```{r latent-viz, fig.height=6, fig.width=8}
+plot_latent_space(model, data[,-1], method = "tsne")
+```
+
+# Hierarchical Analysis
+
+If cluster data is available, we fit a mixed-effects model.
+
+```{r hierarchical}
+if ("cluster_id" %in% names(data)) {
+  model_lme <- fit_hierarchical_model(data, "mass ~ metallicity + (1|cluster_id)")
+  summary(model_lme)
+  
+  re <- get_random_effects(model_lme)
+  head(re)
+} else {
+  print("No 'cluster_id' column found. Skipping hierarchical analysis.")
+}
+```
+
+# Spatial Clustering
+
+Checking for galaxy clustering via 2-Point Correlation Function.
+
+```{r spatial}
+if ("ra" %in% names(data) && "dec" %in% names(data)) {
+  pcf <- calculate_spatial_correlation(data$ra, data$dec)
+  ggplot(pcf, aes(x = r, y = xi)) + geom_line() + 
+    labs(title = "2-Point Correlation Function", x = "Separation (deg)", y = "Excess Probability")
+} else {
+  print("No RA/DEC coordinates found. Skipping spatial analysis.")
+}
+```
+
+# Diagnostics
+
+Verifying VAE assumptions.
+
+```{r diagnostics}
+check_residuals(model, data[,-1])$plot
+```

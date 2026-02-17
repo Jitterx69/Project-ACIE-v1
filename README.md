@@ -324,6 +324,11 @@ ACIE/
 ├── notebooks/                  # Jupyter Experiments
 ├── protos/                     # gRPC Protobuf Definitions
 │   └── acie.proto
+├── r/                          # [NEW] R Statistical Package (ACIEr)
+│   ├── R/                      # Source Code
+│   ├── tests/                  # Unit Tests
+│   ├── inst/shiny/             # Dashboard App
+│   └── DESCRIPTION
 ├── rust/                       # Rust Tensor Accelerator
 │   ├── src/lib.rs              # PyO3 Bindings
 │   └── Cargo.toml
