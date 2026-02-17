@@ -11,56 +11,73 @@ from pathlib import Path
 lib_path = Path(__file__).parent / "libacie_asm.dylib"
 
 if lib_path.exists():
-    _lib = ctypes.CDLL(str(lib_path))
-    
-    # Define function signatures
-    _lib.fast_matmul_wrapper.argtypes = [
-        ctypes.POINTER(ctypes.c_float),  # A
-        ctypes.POINTER(ctypes.c_float),  # B
-        ctypes.POINTER(ctypes.c_float),  # C
-        ctypes.c_int64,  # M
-        ctypes.c_int64,  # N
-        ctypes.c_int64,  # K
-    ]
-    _lib.fast_matmul_wrapper.restype = None
-    
-    _lib.fast_relu_wrapper.argtypes = [
-        ctypes.POINTER(ctypes.c_float),  # input
-        ctypes.POINTER(ctypes.c_float),  # output
-        ctypes.c_int64,  # length
-    ]
-    _lib.fast_relu_wrapper.restype = None
-    
-    _lib.fast_sigmoid_wrapper.argtypes = [
-        ctypes.POINTER(ctypes.c_float),  # input
-        ctypes.POINTER(ctypes.c_float),  # output
-        ctypes.c_int64,  # length
-    ]
-    _lib.fast_sigmoid_wrapper.restype = None
+    try:
+        _lib = ctypes.CDLL(str(lib_path))
+        AVAILABLE = True
+    except OSError as e:
+        AVAILABLE = False
+        print(f"Warning: Could not load assembly library at {lib_path}: {e}")
+        _lib = None
 
-    _lib.fast_minkowski_wrapper.argtypes = [
-        ctypes.POINTER(ctypes.c_float),  # input (N x 4)
-        ctypes.POINTER(ctypes.c_float),  # output (N)
-        ctypes.c_int64,  # num_points
-    ]
-    _lib.fast_minkowski_wrapper.restype = None
+    if AVAILABLE:
+        # Define function signatures
+        _lib.fast_matmul_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_float),  # A
+            ctypes.POINTER(ctypes.c_float),  # B
+            ctypes.POINTER(ctypes.c_float),  # C
+            ctypes.c_int64,  # M
+            ctypes.c_int64,  # N
+            ctypes.c_int64,  # K
+        ]
+        _lib.fast_matmul_wrapper.restype = None
+        
+        _lib.fast_relu_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_float),  # input
+            ctypes.POINTER(ctypes.c_float),  # output
+            ctypes.c_int64,  # length
+        ]
+        _lib.fast_relu_wrapper.restype = None
+        
+        _lib.fast_sigmoid_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_float),  # input
+            ctypes.POINTER(ctypes.c_float),  # output
+            ctypes.c_int64,  # length
+        ]
+        _lib.fast_sigmoid_wrapper.restype = None
 
-    _lib.vector_mul_u64_wrapper.argtypes = [
-        ctypes.POINTER(ctypes.c_uint64),
-        ctypes.POINTER(ctypes.c_uint64),
-        ctypes.POINTER(ctypes.c_uint64),
-        ctypes.c_int64,
-    ]
-    _lib.vector_mul_u64_wrapper.restype = None
+        _lib.fast_minkowski_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_float),  # input (N x 4)
+            ctypes.POINTER(ctypes.c_float),  # output (N)
+            ctypes.c_int64,  # num_points
+        ]
+        _lib.fast_minkowski_wrapper.restype = None
 
-    _lib.vector_entropy_wrapper.argtypes = [
-        ctypes.POINTER(ctypes.c_float),  # p
-        ctypes.POINTER(ctypes.c_float),  # out
-        ctypes.c_int64,  # N
-    ]
-    _lib.vector_entropy_wrapper.restype = None
+        _lib.vector_mul_u64_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_int64,
+        ]
+        _lib.vector_mul_u64_wrapper.restype = None
+
+        _lib.vector_entropy_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_float),  # p
+            ctypes.POINTER(ctypes.c_float),  # out
+            ctypes.c_int64,  # N
+        ]
+        _lib.vector_entropy_wrapper.restype = None
+        
+        _lib.montgomery_mul_wrapper.argtypes = [
+            ctypes.POINTER(ctypes.c_uint64), # A
+            ctypes.POINTER(ctypes.c_uint64), # B
+            ctypes.POINTER(ctypes.c_uint64), # N (scalar ptr)
+            ctypes.POINTER(ctypes.c_uint64), # Out
+            ctypes.c_uint64,                 # k0
+            ctypes.c_int64,                  # count
+        ]
+        _lib.montgomery_mul_wrapper.restype = None
     
-    AVAILABLE = True
+    # AVAILABLE = True set above
 else:
     AVAILABLE = False
     print(f"Warning: Assembly library not found at {lib_path}")
@@ -215,3 +232,44 @@ def vector_entropy(p: np.ndarray) -> np.ndarray:
     )
     
     return out
+
+
+def montgomery_mul(A: np.ndarray, B: np.ndarray, N: int, k0: int) -> np.ndarray:
+    """
+    Vectorized Montgomery Multiplication (AVX-512)
+    C[i] = A[i] * B[i] * R^-1 mod N
+    Assumes A, B are arrays of 64-bit integers.
+    N and k0 are scalars.
+    result = A*B*R^-1 mod N.
+    """
+    assert isinstance(N, int) and isinstance(k0, int)
+    
+    if not AVAILABLE:
+        # Software fallback (using Python's BigInt support)
+        # R = 2^64. Montgomery reduction: t = (T + m*N) / R
+        # Effective operation is A * B * R^-1 mod N
+        try:
+            R_inv = pow(1 << 64, -1, N)
+            return (A.astype(object) * B.astype(object) * R_inv % N).astype(np.uint64)
+        except ValueError:
+            # If N is even, inverse doesn't exist
+            print("Warning: N must be odd for Montgomery Mul")
+            return (A * B) % N
+        
+    assert A.dtype == np.uint64 and B.dtype == np.uint64
+    if not A.flags['C_CONTIGUOUS']: A = np.ascontiguousarray(A)
+    if not B.flags['C_CONTIGUOUS']: B = np.ascontiguousarray(B)
+    
+    C = np.zeros_like(A)
+    c_N = ctypes.c_uint64(N)
+    
+    _lib.montgomery_mul_wrapper(
+        A.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        B.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.byref(c_N),
+        C.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.c_uint64(k0),
+        ctypes.c_int64(A.size)
+    )
+    
+    return C

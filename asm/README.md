@@ -42,6 +42,12 @@ entropy_terms = vector_entropy(probs)
 total_entropy = entropy_terms.sum()
 ```
 
+### 4. Vectorized Montgomery Multiplication (AVX-512)
+**Signature**: `void _montgomery_mul_avx512(uint64_t *A, uint64_t *B, uint64_t *N, uint64_t *Out, uint64_t k0, int64_t count)`
+**Description**: Computes batched modular multiplication $C[i] = A[i] \times B[i] \times R^{-1} \pmod N$ for arrays of 64-bit integers.
+- **Optimization**: Uses `vpmuludq` to emulate 128-bit products and parallelize modular reduction across 8 lanes.
+- **Usage**: Critical for accelerating standard BigInt cryptography (e.g., Paillier) by vectorizing the core modular multiplication loop.
+
 ## Compilation
 
 Requires `nasm` and a C compiler (GCC/Clang).

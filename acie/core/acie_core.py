@@ -17,6 +17,7 @@ from acie.core.scm import StructuralCausalModel, AstronomicalSCM
 from acie.inference.inference import LatentInferenceModel
 from acie.inference.counterfactual import CounterfactualEngine
 from acie.models.physics_layers import PhysicsConstraintValidator
+from acie.utils.entropy_monitor import EntropyMonitor
 
 
 class ACIEEngine:
@@ -44,6 +45,7 @@ class ACIEEngine:
         self.counterfactual_engine = counterfactual_engine
         self.physics_validator = physics_validator
         self.device = device
+        self.entropy_monitor = EntropyMonitor(threshold=0.1)
         
     @classmethod
     def from_config(cls, config_path: Path) -> "ACIEEngine":
@@ -163,6 +165,11 @@ class ACIEEngine:
             observations=observations,
         )
         
+        # Monitor entropy (Softmax normalization for distribution check)
+        # Using AVX-512 kernel via EntropyMonitor
+        probs = torch.softmax(counterfactual_obs, dim=-1)
+        self.entropy_monitor.check_collapse(probs)
+
         # Validate physics constraints
         if self.physics_validator is not None:
             violations = self.physics_validator(intervened_latent, counterfactual_obs)
