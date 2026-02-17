@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Activity, Server, Zap, Database, RefreshCw } from 'lucide-react';
+import AuditLogTable from './components/AuditLogTable';
+import LatentSpaceVisualizer from './components/LatentSpaceVisualizer';
 
 const Card = ({ title, value, icon: Icon, subtext }) => (
     <div className="bg-surface border border-gray-800 rounded-xl p-6 shadow-lg">
@@ -136,6 +138,11 @@ function App() {
                         Pie Chart Placeholder
                     </div>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <AuditLogTable />
+                <LatentSpaceVisualizer />
             </div>
         </div>
     );
