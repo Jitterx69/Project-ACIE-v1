@@ -12,6 +12,11 @@ extern void _fast_matrix_multiply_asm(float *A, float *B, float *C, int64_t M,
 
 extern void _fast_relu_asm(float *input, float *output, int64_t length);
 extern void _fast_sigmoid_asm(float *input, float *output, int64_t length);
+extern void _minkowski_metric_avx512(float *input, float *output,
+                                     int64_t num_points);
+extern void _vector_mul_u64_avx512(uint64_t *A, uint64_t *B, uint64_t *C,
+                                   int64_t N);
+extern void _vector_entropy_term_avx512(float *p, float *out, int64_t N);
 
 // C wrapper functions callable from Python via ctypes
 void fast_matmul_wrapper(float *A, float *B, float *C, int64_t M, int64_t N,
@@ -25,6 +30,18 @@ void fast_relu_wrapper(float *input, float *output, int64_t length) {
 
 void fast_sigmoid_wrapper(float *input, float *output, int64_t length) {
   _fast_sigmoid_asm(input, output, length);
+}
+
+void fast_minkowski_wrapper(float *input, float *output, int64_t num_points) {
+  _minkowski_metric_avx512(input, output, num_points);
+}
+
+void vector_mul_u64_wrapper(uint64_t *A, uint64_t *B, uint64_t *C, int64_t N) {
+  _vector_mul_u64_avx512(A, B, C, N);
+}
+
+void vector_entropy_wrapper(float *p, float *out, int64_t N) {
+  _vector_entropy_term_avx512(p, out, N);
 }
 
 // Optional: Direct Python extension module (requires Python headers at compile
