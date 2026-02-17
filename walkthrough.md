@@ -179,3 +179,25 @@ To use in Python:
 ```python
 from acie_core import SparseMatrix, RustPaillier
 ```
+
+# Walkthrough: Database Engineering
+
+I have unified the storage layer into a single **PostgreSQL** instance enhanced with efficient extensions.
+
+## Changes
+
+### 1. Infrastructure (`database/`)
+-   **Unified DB**: Custom Docker image (`database/Dockerfile`) combining PostgreSQL with **`pgvector`**.
+-   **Schema**: `schema.sql` defines:
+    -   `users`: Relational auth data.
+    -   `inference_logs`: Metric storage.
+    -   `documents`: Vector store with `vector(768)` column and HNSW indexing.
+
+### 2. Integration (`acie/db/`)
+-   **`vector_store.py`**: Python abstraction using `pgvector.sqlalchemy` to store and search embeddings using Cosine Similarity.
+-   **Dependencies**: Added `pgvector` and `psycopg2-binary` to `requirements.txt`.
+
+## Benefits
+-   **Simplicity**: One database technology to manage.
+-   **Performance**: Localized vector search without network overhead to a separate vector DB.
+
