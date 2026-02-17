@@ -36,6 +36,7 @@ The system employs a hybrid architecture combining **PyTorch** for deep learning
    - [Rust: Tensor Operations](#rust-tensor-operations)
    - [Assembly: Matrix Kernels](#assembly-matrix-kernels)
    - [Java: API Gateway](#java-api-gateway)
+   - [R: Statistical Analysis](#r-statistical-analysis-acier)
 5. [Project Structure](#project-structure)
 6. [Installation & Setup](#installation--setup)
    - [Source Build](#source-build)
@@ -255,6 +256,17 @@ Located in `java/`.
 -   **Role**: Provides a robust, enterprise-ready HTTP interface.
 -   **Integration**: Uses a local socket bridge to communicate with the Python inference engine, ensuring thread isolation and stability.
 
+### R: Statistical Analysis (ACIEr)
+Located in `r/`.
+-   **Role**: Provides rigorous post-inference analysis, hypothesis testing, and publication-ready visualization.
+-   **Package**: `ACIEr` (Advanced Causal Inference Engine for R), fully compliant with CRAN standards.
+-   **Key Capabilities**:
+    -   **Causal Discovery**: Implements the **PC Algorithm** (`pcalg`) to infer causal graphs from observational data, verifying the SCM structure.
+    -   **Latent Space Visualization**: Projects high-dimensional physical manifolds ($P$) into 2D using **t-SNE** and **PCA** for mode collapse detection.
+    -   **Hierarchical Modeling**: Fits **Linear Mixed-Effects Models** (`lme4`) to analyze nested astrophysical data (e.g., galaxies within clusters).
+    -   **Spatial Statistics**: Computes the **2-Point Correlation Function** ($\xi(r)$) via `spatstat` to quantify galaxy clustering.
+    -   **Automated Reporting**: Generates comprehensive **HTML/PDF reports** (`rmarkdown`) summarising model performance and physical validity.
+
 ---
 
 ---
@@ -387,6 +399,19 @@ For developers contributing to the core logic.
     # Build Assembly
     cd asm && make && cd ..
     ```
+
+### R Package Setup
+
+For statistical analysis features.
+
+```bash
+# Install System Deps (macOS)
+brew install r
+
+# Install Package & Dependencies
+Rscript r/install_deps.R
+R CMD INSTALL -l r-libs r/
+```
 
 ### Docker Deployment
 
