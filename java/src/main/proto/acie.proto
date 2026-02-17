@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package acie;
+
+service InferenceService {
+  // Perform counterfactual inference
+  rpc CounterfactualInference (InferenceRequest) returns (InferenceResponse);
+  
+  // Stream inference results (for batch processing)
+  rpc StreamInference (stream InferenceRequest) returns (stream InferenceResponse);
+  
+  // Health check
+  rpc HealthCheck (HealthRequest) returns (HealthResponse);
+}
+
+message InferenceRequest {
+  string model_version = 1;
+  repeated float observation = 2; // 6000 or 14000 dim
+  map<string, float> intervention = 3;
+  string request_id = 4;
+}
+
+message InferenceResponse {
+  repeated float counterfactual = 1;
+  repeated float latent_state = 2;
+  double confidence = 3;
+  string model_version = 4;
+  double latency_ms = 5;
+  string request_id = 6;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  bool gpu_available = 2;
+  int32 gpu_count = 3;
+  string version = 4;
+}

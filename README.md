@@ -251,10 +251,14 @@ Located in `asm/`.
     -   **Crypto**: `montgomery_mul_avx512` implements Batched Montgomery Multiplication for fast modular arithmetic in Paillier encryption.
     -   **Monitoring**: `vector_entropy_avx512` detects mode collapse via fast log estimate ($\ln(p) \approx 0.693(E+M-1)$).
 
-### Java: API Gateway
+### Java: Enterprise Microservice
 Located in `java/`.
--   **Role**: Provides a robust, enterprise-ready HTTP interface.
--   **Integration**: Uses a local socket bridge to communicate with the Python inference engine, ensuring thread isolation and stability.
+-   **Role**: High-performance API Gateway and Audit Server.
+-   **Security**: Implements **JWT Authentication** via Spring Security to protect endpoints.
+-   **Persistence**: Uses **JPA/Hibernate** to log every inference request (input hash, latency, status) for compliance.
+-   **Integration**:
+    -   **gRPC Client**: Generated stubs from `acie.proto` for low-latency communication with Python.
+    -   **Async**: Non-blocking `CompletableFuture` handling for high throughput.
 
 ### R: Statistical Analysis (ACIEr)
 Located in `r/`.
