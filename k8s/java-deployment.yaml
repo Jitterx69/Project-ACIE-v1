@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acie-java
+  namespace: acie
+  labels:
+    app: acie
+    component: java-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: acie
+      component: java-gateway
+  template:
+    metadata:
+      labels:
+        app: acie
+        component: java-gateway
+    spec:
+      containers:
+        - name: java-gateway
+          image: acie/java-gateway:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: ACIE_INFERENCE_HOST
+              value: "acie-service"
+            - name: ACIE_INFERENCE_PORT
+              value: "50051"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: acie-config
+                  key: postgres_db
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: acie-secrets
+                  key: postgres_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: acie-secrets
+                  key: postgres_password
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acie-java-service
+  namespace: acie
+spec:
+  selector:
+    app: acie
+    component: java-gateway
+  ports:
+    - port: 8080
+      targetPort: 8080

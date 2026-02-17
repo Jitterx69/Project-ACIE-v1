@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acie-frontend
+  namespace: acie
+  labels:
+    app: acie
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: acie
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: acie
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: acie/frontend-dashboard:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acie-frontend-service
+  namespace: acie
+spec:
+  selector:
+    app: acie
+    component: frontend
+  ports:
+    - port: 80
+      targetPort: 80

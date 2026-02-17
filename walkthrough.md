@@ -137,3 +137,24 @@ I have established a robust **Containerization & Orchestration** layer to manage
 ./ops/start.sh
 # Access Dashboard at http://localhost
 ```
+
+# Walkthrough: Kubernetes Orchestration
+
+I have generated a complete set of **Kubernetes Manifests** to deploy ACIE as a cloud-native application.
+
+## Changes
+
+### 1. Infrastructure (`k8s/`)
+- **Redis**: `redis.yaml` (Deployment + Service).
+- **Postgres**: `postgres.yaml` (StatefulSet + PVC).
+
+### 2. Microservices
+- **Java Gateway**: `java-deployment.yaml` deploys the Spring Boot container.
+- **Frontend**: `frontend-deployment.yaml` deploys the Nginx/React container.
+- **Inference Engine**: Existing `deployment.yaml` was reviewed and is compatible.
+
+### 3. Networking
+- **Ingress**: Updated `ingress.yaml` to route traffic to all three services based on path (`/`, `/api/java`, `/api/v2`).
+
+## Deployment
+See `k8s/README.md` for step-by-step instructions.
