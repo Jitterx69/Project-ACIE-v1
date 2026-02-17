@@ -107,3 +107,33 @@ I have upgraded the **React Dashboard** to visualize cross-component metrics.
 
 ### 3. Integration
 - Updated `App.jsx` to include these components below the main metrics grid, providing a unified view of the system's performance and analytical output.
+
+# Walkthrough: Server Operations Module
+
+I have established a robust **Containerization & Orchestration** layer to manage the entire ACIE stack.
+
+## Changes
+
+### 1. Containerization
+- **Java Gateway**: Created `java/Dockerfile` (Multi-stage Maven build -> OpenJDK runtime).
+- **Frontend**: Created `frontend/Dockerfile` (Node build -> Nginx serving static assets).
+- **Inference Engine**: Updated `Dockerfile.production` to include `r-base` for the R statistical module.
+
+### 2. Orchestration (`docker-compose.production.yml`)
+- Added `acie-java` service (Internal Port 8080).
+- Added `acie-frontend` service (Internal Port 80).
+- Updated `nginx` configuration to route:
+    - `/` -> `acie-frontend`
+    - `/api/java` -> `acie-java`
+    - `/api/v2` -> `acie-api`
+
+### 3. Management Scripts (`ops/`)
+- `start.sh`: Builds and starts the entire stack in detached mode.
+- `stop.sh`: Gracefully shuts down all services.
+- `status.sh`: Displays the health of running containers.
+
+## Usage
+```bash
+./ops/start.sh
+# Access Dashboard at http://localhost
+```
