@@ -10,12 +10,15 @@ class RAGConfig:
     key_size: int = 1024
 
     # Image Processing
-    image_width: int = 28
-    image_height: int = 28
+    image_width: int = 1024
+    image_height: int = 1024
     grayscale: bool = True
     
+    # Large Image Support (Tiling)
+    tile_size: int = 1024
+    
     # Model Architecture
-    input_dim: int = 784  # 28*28
+    input_dim: int = 1048576  # 1024*1024
     output_dim: int = 10
     
     # System

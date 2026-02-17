@@ -5,6 +5,10 @@ server:
 spring:
   application:
     name: acie-inference-server
+  servlet:
+    multipart:
+      max-file-size: 6GB
+      max-request-size: 6GB
 
 management:
   endpoints:

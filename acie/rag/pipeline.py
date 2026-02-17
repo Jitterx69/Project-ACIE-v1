@@ -1,4 +1,4 @@
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, Union, Optional, Generator
 import torch
 from .config import RAGConfig
 from .ingestion import ImageIngestion
@@ -75,4 +75,60 @@ class HEImageRAGPipeline:
             
         except Exception as e:
             logger.error(f"Pipeline run failed: {e}")
+            raise e
+
+    def run_stream(self, image_path: str, metadata: Dict[str, Any]) -> Generator[torch.Tensor, None, None]:
+        """
+        Run the RAG pipeline in streaming mode for large images.
+        
+        Args:
+            image_path: Path to the large input image.
+            metadata: Metadata for context retrieval.
+            
+        Yields:
+            torch.Tensor: Decrypted result for each tile.
+        """
+        logger.info(f"Starting Streaming RAG pipeline run for: {image_path}")
+        try:
+            # 1. Retrieve Context (Assume same context for all tiles for now)
+            context_context = self.retrieval.retrieve(metadata)
+            
+            # 2. Ingestion Stream
+            # Initialize Physics Aggregator
+            from .physics_aggregator import GlobalPhysicsAggregator
+            self.physics_aggregator = GlobalPhysicsAggregator()
+            
+            tile_generator = self.ingestion.process_large_image_stream(image_path)
+            
+            for i, result_data in enumerate(tile_generator):
+                # Unpack tuple from generator or handle legacy
+                if isinstance(result_data, tuple):
+                    encrypted_tile, tile_coords = result_data
+                else:
+                     encrypted_tile, tile_coords = result_data, (0,0)
+                     
+                # 3. Secure Generation per tile
+                # Note: Generation model usually expects full input or specific structure
+                # Here we assume the model can handle independent tiles or we adapt the model
+                # For RAG, we might need tiled context as well, but using global context for simplicity
+                
+                encrypted_result = self.generation(encrypted_tile, context_weights=context_context)
+                
+                # 4. Decryption per tile
+                decrypted_result = self.ingestion.decrypt_result(encrypted_result)
+                
+                # 5. Physics Update (Global Constraint Enforcement)
+                self.physics_aggregator.update(decrypted_result, tile_box=tile_coords)
+                
+                yield decrypted_result
+                
+            # 6. Global Validation
+            global_violations = self.physics_aggregator.validate_global_constraints()
+            if global_violations:
+                logger.warning(f"Global Physics Violations detected: {global_violations}")
+                
+            logger.info("Streaming pipeline run completed successfully.")
+            
+        except Exception as e:
+            logger.error(f"Streaming pipeline failed: {e}")
             raise e

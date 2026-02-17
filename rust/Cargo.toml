@@ -3,40 +3,30 @@ name = "acie-core"
 version = "0.1.0"
 edition = "2021"
 authors = ["ACIE Team"]
-description = "High-performance Rust components for ACIE"
 
 [lib]
 name = "acie_core"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# Linear algebra and numerics
+# Core numerical
 ndarray = "0.15"
 ndarray-linalg = "0.16"
 rayon = "1.10"
-
-# Graph algorithms
 petgraph = "0.6"
 
-# Python bindings
+# Python Bindings
 pyo3 = { version = "0.20", features = ["extension-module"] }
 numpy = "0.20"
+
+# Crypto Acceleration
+num-bigint = { version = "0.4", features = ["rand"] }
+num-traits = "0.2"
+rand = "0.8"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# Performance
-num-traits = "0.2"
-arrow = "51.0"
-parquet = "51.0"
-
-[dev-dependencies]
-criterion = "0.5"
-
-[[bench]]
-name = "tensor_ops"
-harness = false
 
 [profile.release]
 opt-level = 3

@@ -1,35 +1,31 @@
 //! ACIE Rust Core
-//! 
+//!
 //! High-performance components for the Astronomical Counterfactual Inference Engine.
-//! 
+//!
 //! Provides:
 //! - Fast tensor operations
 //! - Parallel data loading
 //! - SCM graph algorithms
 //! - Physics constraint evaluation
 
-use pyo3::prelude::*;
-use numpy::{PyArray1, PyArray2};
 use ndarray::{Array1, Array2};
+use numpy::{PyArray1, PyArray2};
+use pyo3::prelude::*;
 use rayon::prelude::*;
 
-pub mod tensor_ops;
-pub mod scm_graph;
-pub mod physics;
 pub mod data_loader;
+pub mod physics;
+pub mod scm_graph;
+pub mod tensor_ops;
 
 /// Fast matrix multiplication using optimized BLAS
 #[pyfunction]
-fn fast_matmul(
-    py: Python,
-    a: &PyArray2<f32>,
-    b: &PyArray2<f32>,
-) -> PyResult<Py<PyArray2<f32>>> {
+fn fast_matmul(py: Python, a: &PyArray2<f32>, b: &PyArray2<f32>) -> PyResult<Py<PyArray2<f32>>> {
     let a_array = unsafe { a.as_array() };
     let b_array = unsafe { b.as_array() };
-    
+
     let result = a_array.dot(&b_array);
-    
+
     Ok(PyArray2::from_owned_array(py, result).to_owned())
 }
 
@@ -41,15 +37,14 @@ fn evaluate_physics_constraints(
     constraint_type: &str,
 ) -> PyResult<Py<PyArray1<f32>>> {
     let latent_array = unsafe { latent.as_array() };
-    
-    let violations: Vec<f32> = latent_array
-        .axis_iter(ndarray::Axis(0))
+
+    let latent_rows: Vec<_> = latent_array.axis_iter(ndarray::Axis(0)).collect();
+
+    let violations: Vec<f32> = latent_rows
         .into_par_iter()
-        .map(|row| {
-            physics::check_constraint(row.to_owned(), constraint_type)
-        })
+        .map(|row| physics::check_constraint(row.to_owned(), constraint_type))
         .collect();
-    
+
     let violations_array = Array1::from_vec(violations);
     Ok(PyArray1::from_owned_array(py, violations_array).to_owned())
 }
@@ -70,6 +65,8 @@ fn load_csv_parallel(
     data_loader::load_csv_parallel(path, chunk_size, max_rows)
 }
 
+pub mod acie_crypto;
+
 /// Python module definition
 #[pymodule]
 fn acie_core(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -77,5 +74,8 @@ fn acie_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_physics_constraints, m)?)?;
     m.add_function(wrap_pyfunction!(topological_sort, m)?)?;
     m.add_function(wrap_pyfunction!(load_csv_parallel, m)?)?;
+
+    // Register Paillier Class
+    m.add_class::<acie_crypto::RustPaillier>()?;
     Ok(())
 }

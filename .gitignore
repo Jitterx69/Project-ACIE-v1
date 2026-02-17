@@ -59,3 +59,10 @@ htmlcov/
 
 # TensorBoard
 events.out.tfevents.*
+
+# Generated Artifacts
+rust/target/
+.acie_queue/
+*.png
+pipeline_results_*.json
+

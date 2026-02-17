@@ -27,7 +27,17 @@ class ACIEHomomorphicCipher:
         self.g = None
         self.lmbda = None
         self.mu = None
-        self._generate_keys()
+        self.rust_backend = None
+        
+        # Try to initialize Rust backend
+        try:
+            from acie_core import RustPaillier
+            # Generate keys first to get primes (Python is fine for keygen once)
+            self._generate_keys()
+            # Initialize Rust struct with public key string
+            self.rust_backend = RustPaillier(str(self.n))
+        except ImportError:
+            self._generate_keys()
 
     def _generate_primes(self, bits: int) -> int:
         """Generate a large prime number (simplified for demo)."""
@@ -92,6 +102,9 @@ class ACIEHomomorphicCipher:
         Encrypt plaintext integer m.
         c = g^m * r^n mod n^2
         """
+        if self.rust_backend:
+            return int(self.rust_backend.encrypt(m))
+            
         if self.n is None: raise ValueError("Keys not generated")
         
         # Random r in Z*_n
@@ -133,6 +146,9 @@ class ACIEHomomorphicCipher:
         Add two encrypted values: E(m1) + E(m2)
         Result: E(m1 + m2) = c1 * c2 mod n^2
         """
+        if self.rust_backend:
+            return int(self.rust_backend.add(str(c1), str(c2)))
+            
         return (c1 * c2) % self.nsquare
 
     def add_scalar(self, c: int, k: int) -> int:
@@ -149,4 +165,7 @@ class ACIEHomomorphicCipher:
         Multiply ciphertext by plaintext scalar: E(m) * k
         Result: E(m * k) = c^k mod n^2
         """
+        if self.rust_backend:
+            return int(self.rust_backend.mul(str(c), k))
+            
         return pow(c, k, self.nsquare)
