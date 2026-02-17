@@ -245,9 +245,10 @@ Located in `rust/`, utilizing `pyo3` for bindings.
 Located in `asm/`.
 -   **Why Assembly?**: Hand-tuned AVX-512 assembly enables **4x-16x speedups** for critical bottlenecks that compilers miss.
 -   **New Kernels (v2.1)**:
-    -   **Physics**: `minkowski_metric_avx512` computes spacetime intervals for 4 points/cycle.
-    -   **Crypto**: `vector_mul_u64_avx512` accelerates Paillier BigInt math.
-    -   **Monitoring**: `vector_entropy_avx512` detects mode collapse via fast log estimate.
+    -   **Physics**: `minkowski_metric_avx512` computes spacetime intervals (metric signature -+++) for 4 points/cycle.
+    -   **Crypto**: `vector_mul_u64_avx512` accelerates element-wise 64-bit multiplication.
+    -   **Crypto**: `montgomery_mul_avx512` implements Batched Montgomery Multiplication for fast modular arithmetic in Paillier encryption.
+    -   **Monitoring**: `vector_entropy_avx512` detects mode collapse via fast log estimate ($\ln(p) \approx 0.693(E+M-1)$).
 
 ### Java: API Gateway
 Located in `java/`.
