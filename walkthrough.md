@@ -201,3 +201,27 @@ I have unified the storage layer into a single **PostgreSQL** instance enhanced 
 -   **Simplicity**: One database technology to manage.
 -   **Performance**: Localized vector search without network overhead to a separate vector DB.
 
+# Walkthrough: RAG Pipeline
+
+I have integrated the **Retrieval-Augmented Generation (RAG)** pipeline with the Postgres Vector Store.
+
+## Changes
+
+### 1. Retrieval Strategy (`acie/rag/retrieval.py`)
+-   **`PGVectorRetriever`**: Connects to the database to fetch context.
+-   **Logic**: Converts retrieved embeddings directly into tensor modules for the Secure Generation Model.
+
+### 2. Pipeline (`acie/rag/pipeline.py`)
+-   **Configuration**: Defaults to `PGVectorRetriever` when `RAG_RETRIEVER_TYPE=pgvector` is set.
+-   **Flow**: 
+    1.  Encrypted Image Input.
+    2.  Vector Search for Context (using query embedding).
+    3.  Secure Generation (Image + Context).
+    4.  Decryption.
+
+## Verification
+I created and passed a unit test `tests/test_rag_pipeline.py` that verifies:
+-   Initialization of `PGVectorRetriever`.
+-   Correct calling of `VectorStore.search`.
+-   Injection of retrieved context into the generation model.
+

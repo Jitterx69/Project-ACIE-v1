@@ -52,13 +52,9 @@ class VectorStore:
         finally:
             session.close()
 
-    def search(self, query_embedding: List[float], limit: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query_embedding: List[float], limit: int = 5, include_embedding: bool = False) -> List[Dict[str, Any]]:
         """
-        Similarity search using Cosine Distance (via <=> operator or l2_distance <->)
-        pgvector uses:
-        <-> : Euclidean distance (L2)
-        <=> : Cosine distance
-        <#> : Inner product
+        Similarity search using Cosine Distance.
         """
         session = self.Session()
         try:
@@ -69,13 +65,28 @@ class VectorStore:
                 .limit(limit)
             ).all()
             
-            return [
-                {
+            out = []
+            for doc in results:
+                item = {
                     "id": doc.id,
                     "content": doc.content,
                     "metadata": doc.metadata_
                 }
-                for doc in results
-            ]
+                if include_embedding:
+                     # pgvector returns numpy or list? Vector object converts to numpy array usually or string?
+                     # sqlalchemy pgvector handles mapping.
+                     # It maps to numpy.ndarray or list.
+                     # Let's assume list or convert.
+                     # pgvector-python docs: maps to numpy array if numpy installed, else list.
+                     # convert to list for safety.
+                     import numpy as np
+                     if isinstance(doc.embedding, np.ndarray):
+                         item["embedding"] = doc.embedding.tolist()
+                     elif hasattr(doc.embedding, 'tolist'):
+                         item["embedding"] = doc.embedding.tolist()
+                     else:
+                         item["embedding"] = list(doc.embedding)
+                out.append(item)
+            return out
         finally:
             session.close()

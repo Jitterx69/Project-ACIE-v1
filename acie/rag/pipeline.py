@@ -29,8 +29,17 @@ class HEImageRAGPipeline:
         
         self.ingestion = ImageIngestion(self.config)
         
-        # We currently default to DictContextStore, but this could be configurable
-        self.retrieval = DictContextStore()
+        # Configurable Retrieval Strategy
+        # Check env var or config for retrieval type
+        import os
+        if os.getenv("RAG_RETRIEVER_TYPE") == "pgvector":
+            from .retrieval import PGVectorRetriever
+            # We can pass connection string here if needed, or let it use env defaults
+            self.retrieval = PGVectorRetriever()
+            logger.info("Using PGVectorRetriever")
+        else:
+            self.retrieval = DictContextStore()
+            logger.info("Using default DictContextStore")
         
         self.generation = SecureGenerationModel(self.config)
 
