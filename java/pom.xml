@@ -55,6 +55,19 @@
             <version>${grpc.version}</version>
         </dependency>
 
+
+        <!-- Protobuf Java (pinned to match protoc version) -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.25.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+            <version>3.25.1</version>
+        </dependency>
+
         <!-- Apache Arrow for data transfer -->
         <dependency>
             <groupId>org.apache.arrow</groupId>
