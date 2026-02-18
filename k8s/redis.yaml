@@ -1,12 +1,10 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: acie-redis
   namespace: acie
-  labels:
-    app: acie
-    component: redis
 spec:
+  serviceName: "redis-service"
   replicas: 1
   selector:
     matchLabels:
@@ -21,15 +19,27 @@ spec:
       containers:
         - name: redis
           image: redis:7-alpine
+          command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
           ports:
             - containerPort: 6379
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-config
+              mountPath: /usr/local/etc/redis/redis.conf
+              subPath: redis.conf
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
 ---
 apiVersion: v1
 kind: Service

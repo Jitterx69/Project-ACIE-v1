@@ -51,19 +51,24 @@ services:
   # ============================================================================
   # Redis Cache
   # ============================================================================
+  # ============================================================================
+  # Redis Cache & Message Broker
+  # ============================================================================
   redis:
-    image: redis:7-alpine
+    build:
+      context: ./redis
+      dockerfile: Dockerfile
     container_name: acie-redis
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD:-acie_redis_secure}
     networks:
       - acie-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-acie_redis_secure}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

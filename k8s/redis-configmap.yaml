@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: acie
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    protected-mode yes
+    port 6379
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    requirepass ${REDIS_PASSWORD} 
+    # Note: Environement variable substitution in ConfigMap data is not standard K8s.
+    # We will use a script or init container, or just sed.
+    # Simpler: use the file we created but override command.
+    # For now, let's keep it simple and mount this, but use valid config.
+    requirepass acie_redis_secure

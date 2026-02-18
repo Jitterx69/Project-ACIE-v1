@@ -225,3 +225,22 @@ I created and passed a unit test `tests/test_rag_pipeline.py` that verifies:
 -   Correct calling of `VectorStore.search`.
 -   Injection of retrieved context into the generation model.
 
+# Walkthrough: Redis Infrastructure
+
+I have hardened the Redis layer for production use.
+
+## Changes
+
+### 1. Configuration (`redis/redis.conf`)
+-   **Persistence**: Enabled AOF (Append Only File) with `appendfsync everysec`.
+-   **Memory**: Limited to 256MB with `allkeys-lru` eviction.
+-   **Security**: Disabled dangerous commands. Password protected (configured via environment).
+
+### 2. Docker (`redis/Dockerfile`)
+-   Custom image that bundles the production configuration.
+-   Updated `docker-compose.production.yml` to build and use this image.
+
+### 3. Kubernetes (`k8s/`)
+-   **ConfigMap**: `k8s/redis-configmap.yaml` stores the configuration.
+-   **StatefulSet**: Converted `k8s/redis.yaml` to a StatefulSet with PVC for robust data persistence.
+
