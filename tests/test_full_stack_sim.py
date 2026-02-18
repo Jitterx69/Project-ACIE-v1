@@ -1,9 +1,13 @@
 import sys
+import os
 import unittest
 from unittest.mock import MagicMock, patch, call
 import threading
 import time
 import json
+
+# Add project root to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # ==========================================
 # 1. Global Mocks (Must be before imports)
@@ -11,6 +15,42 @@ import json
 # Mock Rust Core
 sys.modules["acie_core"] = MagicMock()
 sys.modules["acie.cipher_embeddings.tensor"] = MagicMock()
+
+# Mock Torch (missing in venv_secure)
+sys.modules["torch"] = MagicMock()
+sys.modules["torch.nn"] = MagicMock()
+sys.modules["torch.distributions"] = MagicMock()
+sys.modules["torch.utils"] = MagicMock()
+sys.modules["torch.utils.data"] = MagicMock()
+sys.modules["networkx"] = MagicMock()
+sys.modules["numpy"] = MagicMock()
+sys.modules["pandas"] = MagicMock()
+sys.modules["scipy"] = MagicMock()
+sys.modules["PIL"] = MagicMock()
+sys.modules["PIL.Image"] = MagicMock()
+sys.modules["cv2"] = MagicMock()
+sys.modules["matplotlib"] = MagicMock()
+sys.modules["matplotlib.pyplot"] = MagicMock()
+sys.modules["seaborn"] = MagicMock()
+sys.modules["torchvision"] = MagicMock()
+sys.modules["torchvision.transforms"] = MagicMock()
+sys.modules["fastapi"] = MagicMock()
+# Explicitly mock Request/Response for structured_logger import
+sys.modules["fastapi"].Request = MagicMock
+sys.modules["fastapi"].Response = MagicMock
+sys.modules["pydantic"] = MagicMock()
+sys.modules["uvicorn"] = MagicMock()
+sys.modules["grpc"] = MagicMock()
+sys.modules["typer"] = MagicMock()
+sys.modules["starlette"] = MagicMock()
+sys.modules["starlette.middleware"] = MagicMock()
+sys.modules["starlette.middleware.base"] = MagicMock()
+sys.modules["starlette.requests"] = MagicMock()
+sys.modules["starlette.responses"] = MagicMock()
+
+# Mock complex project internal modules to avoid recursive import/mocking issues
+sys.modules["acie.models.physics_layers"] = MagicMock()
+sys.modules["acie.inference.inference"] = MagicMock()
 
 # Mock Database & Kafka & Redis
 sys.modules["confluent_kafka"] = MagicMock()
