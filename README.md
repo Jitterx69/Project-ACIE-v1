@@ -1,4 +1,4 @@
-# ACIE: Astronomical Counterfactual Inference Engine
+# ACIE: Astrophysical Counterfactual Inference Engine
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
